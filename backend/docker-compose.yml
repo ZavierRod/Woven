@@ -1,0 +1,17 @@
+name: woven
+
+services:
+  woven-db:
+    container_name: woven-postgres
+    image: postgres:15
+    environment:
+      POSTGRES_USER: woven_user
+      POSTGRES_PASSWORD: woven_password
+      POSTGRES_DB: woven
+    ports:
+      - "5433:5432"
+    volumes:
+      - woven_postgres_data:/var/lib/postgresql/data
+
+volumes:
+  woven_postgres_data:

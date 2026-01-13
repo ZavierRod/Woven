@@ -1,0 +1,19 @@
+# Sensitive
+*.p8
+.env
+.DS_Store
+
+# Python
+__pycache__/
+*.pyc
+venv/
+.venv/
+env/
+
+# Xcode / Swift
+DerivedData/
+build/
+*.xcworkspace
+!default.xcworkspace
+*.xcuserstate
+*.

@@ -7,18 +7,10 @@
 
 import SwiftUI
 
-struct ContentView: View {
-    var body: some View {
-        VStack {
-            Image(systemName: "globe")
-                .imageScale(.large)
-                .foregroundStyle(.tint)
-            Text("Hello, world!")
-        }
-        .padding()
-    }
-}
+// This file is now just for the main app structure
+// AuthView.swift handles the sign in / sign up UI
 
-#Preview {
-    ContentView()
+#Preview("Auth") {
+    AuthView()
+        .environmentObject(AuthenticationManager())
 }

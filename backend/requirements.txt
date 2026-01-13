@@ -1,0 +1,29 @@
+# Web Framework
+fastapi
+uvicorn[standard]
+
+# Database
+sqlalchemy
+psycopg2-binary
+alembic
+
+# Authentication
+pyjwt
+cryptography
+passlib[bcrypt]
+bcrypt==4.0.1
+
+# Utilities
+requests
+python-dotenv
+pydantic-settings
+email-validator
+python-multipart
+
+# Testing
+pytest
+pytest-asyncio
+httpx[http2]
+
+# Service Discovery
+zeroconf

@@ -52,6 +52,8 @@ struct WovenApp: App {
                                     FriendRequestsView(requestId: requestId)
                                 case .vaultInvite(let vaultId):
                                     VaultInviteView(vaultId: vaultId)
+                                case .accessRequest(let requestId):
+                                    AccessApprovalView(requestId: requestId)
                                 case .home:
                                     EmptyView()
                                 }

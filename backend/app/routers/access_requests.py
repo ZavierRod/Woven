@@ -123,8 +123,9 @@ async def approve_access_request(
 
 
 @router.post("/{request_id}/deny", response_model=AccessRequestResponse)
-def deny_access_request(
+async def deny_access_request(
     request_id: int,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user_id: int = Depends(get_current_user_id),
 ):
@@ -138,7 +139,30 @@ def deny_access_request(
     if access_req.approver_id != current_user_id:
         raise HTTPException(status_code=403, detail="Not authorized")
 
-    return access_request_crud.deny(db, access_req)
+    result = access_request_crud.deny(db, access_req)
+    
+    # Send notification to requester
+    requester_devices = device_crud.get_user_devices(db, access_req.requester_id)
+    vault = vault_crud.get_by_id(db, access_req.vault_id)
+    
+    async def send_denied_push():
+        for device in requester_devices:
+            await apns_service.send_notification(
+                device_token=device.token,
+                title="Access Denied",
+                body=f"Your request to open '{vault.name}' was denied.",
+                data={
+                    "type": "request_denied",
+                    "request_id": access_req.id,
+                    "vault_id": str(access_req.vault_id)
+                },
+                environment=device.apns_environment or "sandbox"
+            )
+    
+    background_tasks.add_task(send_denied_push)
+    
+    return result
+
 
 
 @router.get("/{request_id}", response_model=AccessRequestResponse)

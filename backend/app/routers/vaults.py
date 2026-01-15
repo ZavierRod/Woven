@@ -18,7 +18,7 @@ from app.schemas.vault import (
     VaultInviteResponse,
 )
 from app.schemas.user import UserResponse
-from app.models.vault import MemberRole, MemberStatus
+from app.models.vault import MemberRole, MemberStatus, VaultStatus
 
 router = APIRouter(prefix="/vaults", tags=["Vaults"])
 
@@ -30,6 +30,7 @@ def vault_to_response(db: Session, vault) -> VaultResponse:
         name=vault.name,
         type=vault.type.value,
         mode=vault.mode.value,
+        status=vault.status.value,
         owner_id=vault.owner_id,
         created_at=vault.created_at,
         updated_at=vault.updated_at,
@@ -75,19 +76,82 @@ def vault_to_detail_response(db: Session, vault) -> VaultDetailResponse:
 
 
 @router.post("/", response_model=VaultResponse, status_code=status.HTTP_201_CREATED)
-def create_vault(
+async def create_vault(
     vault_in: VaultCreate,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user_id: int = Depends(get_current_user_id),
 ):
     """
     Create a new vault.
-
+    
     - **name**: Display name for the vault
     - **type**: "solo" (default) or "pair"
     - **mode**: "normal" (default) or "strict"
+    - **invitee_id**: Required if type is "pair"
     """
-    vault = vault_crud.create(db, vault_in, current_user_id)
+    # Validate pair vault requirements
+    if vault_in.type == "pair":
+        if not vault_in.invitee_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="invitee_id is required for pair vaults"
+            )
+            
+        # Check if users are friends using friendship_crud
+        if not friendship_crud.are_friends(db, current_user_id, vault_in.invitee_id):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="You can only create a pair vault with a friend"
+            )
+            
+        # Check if invitee exists
+        invitee = user_crud.get_by_id(db, vault_in.invitee_id)
+        if not invitee:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Invited user not found"
+            )
+
+        # Create vault in PENDING state
+        vault = vault_crud.create(db, vault_in, current_user_id, status="PENDING")
+        
+        # Add invitee as PENDING member
+        vault_member_crud.add_member(
+            db,
+            vault.id,
+            invitee.id,
+            role=MemberRole.MEMBER,
+            status=MemberStatus.PENDING
+        )
+        
+        # Send push notification
+        from app.services.apns import apns_service
+        from app.crud.device import device_crud
+        
+        # Get invitee's devices
+        devices = device_crud.get_user_devices(db, invitee.id)
+        
+        # Get current user info
+        sender = user_crud.get_by_id(db, current_user_id)
+        sender_name = sender.full_name or sender.username
+        
+        async def send_pushes():
+            for device in devices:
+                await apns_service.send_notification(
+                    device_token=device.token,
+                    title="Vault Invitation",
+                    body=f"{sender_name} invited you to a shared vault",
+                    data={"type": "vault_invite", "vault_id": str(vault.id)},
+                    environment=device.apns_environment or "sandbox"
+                )
+        
+        background_tasks.add_task(send_pushes)
+        
+    else:
+        # Solo vault - created ACTIVE
+        vault = vault_crud.create(db, vault_in, current_user_id, status="ACTIVE")
+
     return vault_to_response(db, vault)
 
 
@@ -337,8 +401,14 @@ def accept_vault_invite(
         )
 
     vault_member_crud.accept_membership(db, membership)
-
+    
+    # Activate the vault if it was pending
     vault = vault_crud.get_by_id(db, vault_id)
+    if vault.status == VaultStatus.PENDING:
+        vault.status = VaultStatus.ACTIVE
+        db.commit()
+        db.refresh(vault)
+        
     return vault_to_response(db, vault)
 
 

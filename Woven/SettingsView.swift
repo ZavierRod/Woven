@@ -5,9 +5,8 @@ struct SettingsView: View {
     @EnvironmentObject var localAuth: LocalAuthenticationManager
     
     var body: some View {
-        NavigationStack {
-            ZStack {
-                WovenTheme.background.ignoresSafeArea()
+        ZStack {
+            WovenTheme.background.ignoresSafeArea()
                 
                 ScrollView {
                     VStack(spacing: WovenTheme.spacing24) {
@@ -184,7 +183,6 @@ struct SettingsView: View {
             .navigationBarTitleDisplayMode(.large)
             .toolbarBackground(WovenTheme.background, for: .navigationBar)
             .toolbarColorScheme(.dark, for: .navigationBar)
-        }
         .preferredColorScheme(.dark)
     }
     

@@ -10,8 +10,8 @@ class BackendDiscoveryService: ObservableObject {
     @Published var isDiscovering = false
     
     // Hardcoded backend IP address - update this when on a different network
-    private let backendIP = "192.168.4.45" // Change this to your laptop's current IP address
-    private let backendPort = 8001
+    private let backendIP = "192.168.1.117" // Change this to your laptop's current IP address
+    private let backendPort = 8000
     
     private init() {
         discoverBackend()

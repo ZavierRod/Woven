@@ -58,9 +58,15 @@ class VaultViewModel: ObservableObject {
     
     // MARK: - Create Vault
     
-    func createVault(name: String, type: VaultType, mode: VaultMode) async -> Bool {
+    func createVault(name: String, type: VaultType, mode: VaultMode, inviteeId: Int? = nil) async -> Bool {
         guard !name.trimmingCharacters(in: .whitespaces).isEmpty else {
             errorMessage = "Please enter a vault name"
+            return false
+        }
+        
+        // Validate pair vault requirements
+        if type == .pair && inviteeId == nil {
+            errorMessage = "Please select a friend to share this vault with"
             return false
         }
         
@@ -68,9 +74,14 @@ class VaultViewModel: ObservableObject {
         errorMessage = nil
         
         do {
-            let newVault = try await service.createVault(name: name, type: type, mode: mode)
+            let newVault = try await service.createVault(name: name, type: type, mode: mode, inviteeId: inviteeId)
+            
+            // Generate and store the vault encryption key immediately
+            _ = try VaultKeyManager.shared.getOrCreateVaultKey(vaultId: newVault.id)
+            print("🔑 Generated vault key for: \(newVault.id)")
+            
             vaults.insert(newVault, at: 0) // Add to top of list
-            successMessage = "Vault created!"
+            successMessage = (type == .pair) ? "Invite sent!" : "Vault created!"
             print("✅ Created vault: \(newVault.name)")
             isCreating = false
             return true
@@ -144,6 +155,11 @@ class VaultViewModel: ObservableObject {
         
         do {
             let vault = try await service.acceptInvite(vaultId: vaultId)
+            
+            // Generate and store the vault encryption key for this member
+            _ = try VaultKeyManager.shared.getOrCreateVaultKey(vaultId: vault.id)
+            print("🔑 Generated vault key for accepted vault: \(vault.id)")
+            
             pendingInvites.removeAll { $0.id == vaultId }
             vaults.insert(vault, at: 0)
             successMessage = "Joined vault!"

@@ -4,7 +4,7 @@ import Foundation
 final class FriendService {
     static let shared = FriendService()
     
-    private let fallbackURL = "http://192.168.4.45:8001"
+    private let fallbackURL = "http://192.168.1.117:8000"
     
     private init() {}
     

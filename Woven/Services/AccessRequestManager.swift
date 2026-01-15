@@ -57,7 +57,41 @@ final class AccessRequestManager: ObservableObject {
     
     private init() {
         let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
+        // Use custom date decoding to handle Python's naive datetimes (no timezone)
+        decoder.dateDecodingStrategy = .custom { decoder in
+            let container = try decoder.singleValueContainer()
+            let dateString = try container.decode(String.self)
+            
+            // Try ISO8601 with timezone and fractional seconds
+            let iso8601WithFrac = ISO8601DateFormatter()
+            iso8601WithFrac.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            if let date = iso8601WithFrac.date(from: dateString) {
+                return date
+            }
+            
+            // Try ISO8601 with timezone, no fractional seconds
+            let iso8601 = ISO8601DateFormatter()
+            iso8601.formatOptions = [.withInternetDateTime]
+            if let date = iso8601.date(from: dateString) {
+                return date
+            }
+            
+            // Try naive datetime with fractional seconds (Python's default: "2024-01-14T12:30:45.123456")
+            let naiveFormatter = DateFormatter()
+            naiveFormatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss.SSSSSS"
+            naiveFormatter.timeZone = TimeZone(identifier: "UTC")
+            if let date = naiveFormatter.date(from: dateString) {
+                return date
+            }
+            
+            // Try naive datetime without fractional seconds
+            naiveFormatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss"
+            if let date = naiveFormatter.date(from: dateString) {
+                return date
+            }
+            
+            throw DecodingError.dataCorruptedError(in: container, debugDescription: "Cannot decode date: \(dateString)")
+        }
         self.decoder = decoder
     }
     
@@ -65,7 +99,7 @@ final class AccessRequestManager: ObservableObject {
         if let discoveredURL = BackendDiscoveryService.shared.discoveredURL {
             return discoveredURL
         }
-        return "http://192.168.4.45:8001" // Fallback
+        return "http://192.168.1.117:8000" // Fallback
     }
     
     private func getAuthToken() -> String? {
@@ -180,6 +214,7 @@ final class AccessRequestManager: ObservableObject {
         }
     }
     
+    
     /// Decrypt the received share from an approved request.
     func decryptShare(from request: AccessRequest) throws -> Data {
         guard let encryptedString = request.encryptedShare,
@@ -223,5 +258,19 @@ final class AccessRequestManager: ObservableObject {
         let decryptedData = try AES.GCM.open(sealedBox, using: symmetricKey)
         
         return decryptedData
+    }
+    
+    /// Deny an access request.
+    func denyRequest(requestId: Int) async throws {
+        let url = URL(string: "\(baseURL)/access-requests/\(requestId)/deny")!
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(getAuthToken() ?? "")", forHTTPHeaderField: "Authorization")
+        
+        let (_, response) = try await URLSession.shared.data(for: request)
+        
+        guard (response as? HTTPURLResponse)?.statusCode == 200 else {
+            throw VaultServiceError.serverError(statusCode: (response as? HTTPURLResponse)?.statusCode ?? 500)
+        }
     }
 }

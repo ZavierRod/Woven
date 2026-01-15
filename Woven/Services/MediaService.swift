@@ -6,7 +6,7 @@ import CryptoKit
 final class MediaService {
     static let shared = MediaService()
     
-    private let fallbackURL = "http://192.168.4.45:8001"
+    private let fallbackURL = "http://192.168.1.117:8000"
     private let encryptionService = EncryptionService.shared
     private let keyManager = VaultKeyManager.shared
     private let encryptionStore = MediaEncryptionStore.shared

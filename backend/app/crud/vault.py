@@ -31,12 +31,15 @@ class VaultCRUD:
             )
         ).order_by(Vault.created_at.desc()).all()
     
-    def create(self, db: Session, vault_in: VaultCreate, owner_id: int) -> Vault:
+    def create(self, db: Session, vault_in: VaultCreate, owner_id: int, status: str = "ACTIVE") -> Vault:
         """Create a new vault."""
+        from app.models.vault import VaultStatus
+        
         vault = Vault(
             name=vault_in.name,
             type=VaultType(vault_in.type),
             mode=VaultMode(vault_in.mode),
+            status=VaultStatus(status),
             owner_id=owner_id,
         )
         db.add(vault)

@@ -185,6 +185,12 @@ struct CreateVaultRequest: Codable {
     let name: String
     let type: VaultType
     let mode: VaultMode
+    let inviteeId: Int?
+    
+    enum CodingKeys: String, CodingKey {
+        case name, type, mode
+        case inviteeId = "invitee_id"
+    }
 }
 
 struct VaultInviteRequest: Codable {

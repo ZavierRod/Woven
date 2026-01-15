@@ -5,7 +5,7 @@ import Foundation
 final class VaultService {
     static let shared = VaultService()
     
-    private let fallbackURL = "http://192.168.4.45:8001"
+    private let fallbackURL = "http://192.168.1.117:8000"
     
     private init() {}
     
@@ -144,7 +144,7 @@ final class VaultService {
     
     // MARK: - Create Vault
     
-    func createVault(name: String, type: VaultType, mode: VaultMode) async throws -> Vault {
+    func createVault(name: String, type: VaultType, mode: VaultMode, inviteeId: Int? = nil) async throws -> Vault {
         guard let url = URL(string: "\(baseURL)/vaults/") else {
             throw VaultServiceError.invalidURL
         }
@@ -153,7 +153,7 @@ final class VaultService {
             throw VaultServiceError.unauthorized
         }
         
-        let body = CreateVaultRequest(name: name, type: type, mode: mode)
+        let body = CreateVaultRequest(name: name, type: type, mode: mode, inviteeId: inviteeId)
         request.httpBody = try JSONEncoder().encode(body)
         
         let (data, response) = try await URLSession.shared.data(for: request)
@@ -163,6 +163,11 @@ final class VaultService {
         }
         
         guard httpResponse.statusCode == 201 else {
+            // Try to extract error message
+            if let errorJson = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let detail = errorJson["detail"] as? String {
+                throw VaultServiceError.apiError(message: detail)
+            }
             throw VaultServiceError.serverError(statusCode: httpResponse.statusCode)
         }
         

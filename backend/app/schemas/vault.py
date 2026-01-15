@@ -11,6 +11,7 @@ class VaultCreate(BaseModel):
     name: str
     type: Literal["solo", "pair"] = "solo"
     mode: Literal["normal", "strict"] = "normal"
+    invitee_id: Optional[int] = None  # User ID of friend to invite (for pair vaults)
 
 
 class VaultUpdate(BaseModel):
@@ -38,6 +39,7 @@ class VaultResponse(BaseModel):
     name: str
     type: str
     mode: str
+    status: str = "active"
     owner_id: int
     created_at: datetime
     updated_at: Optional[datetime] = None

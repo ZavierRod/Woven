@@ -10,10 +10,9 @@ struct HomeView: View {
     @State private var appeared = false
     
     var body: some View {
-        NavigationStack {
-            ZStack {
-                // Background
-                WovenTheme.background.ignoresSafeArea()
+        ZStack {
+            // Background
+            WovenTheme.background.ignoresSafeArea()
                 
                 VStack(spacing: 0) {
                     // Custom segmented control
@@ -68,7 +67,6 @@ struct HomeView: View {
                 await viewModel.fetchPendingInvites()
                 await friendsViewModel.loadAll()
             }
-        }
         .preferredColorScheme(.dark)
     }
     
@@ -1008,11 +1006,13 @@ struct AddFriendView: View {
 // MARK: - Create Vault Sheet (Updated with API)
 struct CreateVaultSheet: View {
     @ObservedObject var viewModel: VaultViewModel
+    @StateObject private var friendsViewModel = FriendsViewModel()
     @Environment(\.dismiss) var dismiss
     
     @State private var vaultName = ""
     @State private var selectedType: VaultType = .solo
     @State private var selectedMode: VaultMode = .normal
+    @State private var selectedFriendId: Int? = nil
     
     var body: some View {
         NavigationStack {
@@ -1036,6 +1036,7 @@ struct CreateVaultSheet: View {
                                 isSelected: selectedType == .solo
                             ) {
                                 selectedType = .solo
+                                selectedFriendId = nil  // Reset friend selection when switching to solo
                             }
                             
                             VaultTypeOption(
@@ -1050,6 +1051,35 @@ struct CreateVaultSheet: View {
                             }
                         }
                         .padding(.top, WovenTheme.spacing12)
+                        
+                        // Friend selector (only for pair vaults)
+                        if selectedType == .pair {
+                            VStack(spacing: WovenTheme.spacing12) {
+                                Text("Select friend to share with")
+                                    .font(WovenTheme.subheadline())
+                                    .foregroundColor(WovenTheme.textSecondary)
+                                
+                                if friendsViewModel.isLoading {
+                                    ProgressView()
+                                        .tint(WovenTheme.accent)
+                                        .padding()
+                                } else if friendsViewModel.friends.isEmpty {
+                                    Text("No friends yet. Add a friend first!")
+                                        .font(WovenTheme.caption())
+                                        .foregroundColor(WovenTheme.textTertiary)
+                                        .padding()
+                                } else {
+                                    ForEach(friendsViewModel.friends) { friend in
+                                        FriendSelectionRow(
+                                            friend: friend,
+                                            isSelected: selectedFriendId == friend.id
+                                        ) {
+                                            selectedFriendId = friend.id
+                                        }
+                                    }
+                                }
+                            }
+                        }
                         
                         // Mode selection (only for pair vaults)
                         if selectedType == .pair {
@@ -1116,7 +1146,7 @@ struct CreateVaultSheet: View {
                         
                         Button {
                             Task {
-                                if await viewModel.createVault(name: vaultName, type: selectedType, mode: selectedMode) {
+                                if await viewModel.createVault(name: vaultName, type: selectedType, mode: selectedMode, inviteeId: selectedFriendId) {
                                     dismiss()
                                 }
                             }
@@ -1125,7 +1155,7 @@ struct CreateVaultSheet: View {
                                 ProgressView()
                                     .tint(.black)
                             } else {
-                                Text("Create Vault")
+                                Text(selectedType == .pair ? "Send Invite" : "Create Vault")
                             }
                         }
                         .buttonStyle(WovenButtonStyle(isEnabled: !vaultName.isEmpty && !viewModel.isCreating))
@@ -1148,6 +1178,10 @@ struct CreateVaultSheet: View {
             }
             .onDisappear {
                 viewModel.clearMessages()
+            }
+            .task {
+                // Load friends when sheet appears
+                await friendsViewModel.loadFriends()
             }
         }
         .preferredColorScheme(.dark)
@@ -1200,6 +1234,61 @@ struct VaultTypeOption: View {
             .overlay(
                 RoundedRectangle(cornerRadius: WovenTheme.cornerRadiusLarge, style: .continuous)
                     .stroke(isSelected ? accentColor.opacity(0.5) : Color.clear, lineWidth: 2)
+            )
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+// MARK: - Friend Selection Row (for Create Vault)
+struct FriendSelectionRow: View {
+    let friend: Friend
+    let isSelected: Bool
+    let action: () -> Void
+    
+    private let accentColor = Color(hex: "A855F7")
+    
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: WovenTheme.spacing16) {
+                // Avatar
+                ZStack {
+                    Circle()
+                        .fill(
+                            LinearGradient(
+                                colors: [accentColor, Color(hex: "6366F1")],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .frame(width: 40, height: 40)
+                    
+                    Text(String((friend.fullName ?? friend.username).prefix(1)).uppercased())
+                        .font(.system(size: 16, weight: .bold, design: .rounded))
+                        .foregroundColor(.white)
+                }
+                
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(friend.fullName ?? friend.username)
+                        .font(WovenTheme.subheadline())
+                        .foregroundColor(WovenTheme.textPrimary)
+                    Text("@\(friend.username)")
+                        .font(WovenTheme.caption())
+                        .foregroundColor(WovenTheme.textSecondary)
+                }
+                
+                Spacer()
+                
+                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                    .font(.system(size: 22))
+                    .foregroundColor(isSelected ? accentColor : WovenTheme.textTertiary)
+            }
+            .padding(WovenTheme.spacing12)
+            .background(isSelected ? accentColor.opacity(0.1) : WovenTheme.cardBackground)
+            .clipShape(RoundedRectangle(cornerRadius: WovenTheme.cornerRadiusMedium, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: WovenTheme.cornerRadiusMedium, style: .continuous)
+                    .stroke(isSelected ? accentColor.opacity(0.5) : Color.clear, lineWidth: 1)
             )
         }
         .buttonStyle(.plain)

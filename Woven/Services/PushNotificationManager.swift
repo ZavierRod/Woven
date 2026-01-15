@@ -110,6 +110,15 @@ import UserNotifications
                     router.navigate(to: .vaultInvite(vaultId: vaultId))
                 }
                 
+            case "access_request":
+                // Handle access request approval notification
+                if let requestIdString = userInfo["request_id"] as? String,
+                   let requestId = Int(requestIdString) {
+                    router.navigate(to: .accessRequest(requestId: requestId))
+                } else if let requestId = userInfo["request_id"] as? Int {
+                    router.navigate(to: .accessRequest(requestId: requestId))
+                }
+                
             default:
                 break
             }

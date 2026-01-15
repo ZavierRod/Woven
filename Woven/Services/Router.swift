@@ -4,6 +4,7 @@ import Combine
 enum Route: Hashable {
     case friendRequests(requestId: Int?)
     case vaultInvite(vaultId: UUID)
+    case accessRequest(requestId: Int)
     case home
 }
 

@@ -29,6 +29,11 @@ class MemberStatus(str, enum.Enum):
     REVOKED = "revoked"
 
 
+class VaultStatus(str, enum.Enum):
+    ACTIVE = "ACTIVE"
+    PENDING = "PENDING"
+
+
 class Vault(Base):
     """
     Encrypted media container.
@@ -42,6 +47,7 @@ class Vault(Base):
     name = Column(String, nullable=False)
     type = Column(SQLEnum(VaultType), default=VaultType.SOLO, nullable=False)
     mode = Column(SQLEnum(VaultMode), default=VaultMode.NORMAL, nullable=False)
+    status = Column(SQLEnum(VaultStatus), default=VaultStatus.ACTIVE, nullable=False)
     owner_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     
     # Timestamps

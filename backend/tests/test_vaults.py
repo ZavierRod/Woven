@@ -21,19 +21,19 @@ class TestCreateVault:
         assert data["owner_id"] == test_user["user_id"]
         assert data["member_count"] == 1  # Owner is a member
 
-    def test_create_pair_vault(self, client, test_user):
+    def test_create_pair_vault(self, client, test_user, second_user, friends):
         """Test creating a pair vault."""
         response = client.post("/vaults/",
-            json={"name": "Shared Vault", "type": "pair", "mode": "normal"},
+            json={"name": "Shared Vault", "type": "pair", "mode": "normal", "invitee_id": second_user["user_id"]},
             headers=test_user["headers"]
         )
         assert response.status_code == 201
         assert response.json()["type"] == "pair"
 
-    def test_create_strict_mode_vault(self, client, test_user):
+    def test_create_strict_mode_vault(self, client, test_user, second_user, friends):
         """Test creating a vault with strict mode."""
         response = client.post("/vaults/",
-            json={"name": "Strict Vault", "type": "pair", "mode": "strict"},
+            json={"name": "Strict Vault", "type": "pair", "mode": "strict", "invitee_id": second_user["user_id"]},
             headers=test_user["headers"]
         )
         assert response.status_code == 201
@@ -236,26 +236,16 @@ class TestDeleteVault:
 class TestVaultInvitations:
     """Tests for vault invitation flow."""
 
-    def test_invite_user_to_pair_vault(self, client, test_user, second_user):
-        """Test inviting a user to a pair vault."""
-        # Create a pair vault
+    def test_invite_user_to_pair_vault(self, client, test_user, second_user, friends):
+        """Test creating a pair vault with a targeted pending member."""
         create_response = client.post("/vaults/",
-            json={"name": "Shared Vault", "type": "pair"},
+            json={"name": "Shared Vault", "type": "pair", "invitee_id": second_user["user_id"]},
             headers=test_user["headers"]
         )
         vault_id = create_response.json()["id"]
-        
-        # Get second user's invite code
-        user2_response = client.get("/users/me", headers=second_user["headers"])
-        invite_code = user2_response.json()["invite_code"]
-        
-        # Invite second user
-        response = client.post(f"/vaults/{vault_id}/invite",
-            json={"invite_code": invite_code},
-            headers=test_user["headers"]
-        )
+        response = client.get("/vaults/invites/pending", headers=second_user["headers"])
         assert response.status_code == 200
-        assert response.json()["status"] == "pending"
+        assert [vault["id"] for vault in response.json()] == [vault_id]
 
     def test_invite_to_solo_vault_fails(self, client, test_user, second_user):
         """Test that inviting to solo vault fails."""
@@ -276,37 +266,20 @@ class TestVaultInvitations:
 
     def test_invite_self_fails(self, client, test_user):
         """Test that users can't invite themselves."""
-        create_response = client.post("/vaults/",
-            json={"name": "Pair Vault", "type": "pair"},
-            headers=test_user["headers"]
-        )
-        vault_id = create_response.json()["id"]
-        
-        user_response = client.get("/users/me", headers=test_user["headers"])
-        invite_code = user_response.json()["invite_code"]
-        
-        response = client.post(f"/vaults/{vault_id}/invite",
-            json={"invite_code": invite_code},
+        response = client.post("/vaults/",
+            json={"name": "Pair Vault", "type": "pair", "invitee_id": test_user["user_id"]},
             headers=test_user["headers"]
         )
         assert response.status_code == 400
 
-    def test_accept_vault_invitation(self, client, test_user, second_user):
+    def test_accept_vault_invitation(self, client, test_user, second_user, friends):
         """Test accepting a vault invitation."""
         # Create pair vault and invite
         create_response = client.post("/vaults/",
-            json={"name": "Shared", "type": "pair"},
+            json={"name": "Shared", "type": "pair", "invitee_id": second_user["user_id"]},
             headers=test_user["headers"]
         )
         vault_id = create_response.json()["id"]
-        
-        user2_response = client.get("/users/me", headers=second_user["headers"])
-        invite_code = user2_response.json()["invite_code"]
-        
-        client.post(f"/vaults/{vault_id}/invite",
-            json={"invite_code": invite_code},
-            headers=test_user["headers"]
-        )
         
         # Second user accepts
         response = client.post(f"/vaults/{vault_id}/accept", headers=second_user["headers"])
@@ -317,22 +290,14 @@ class TestVaultInvitations:
         vault_names = [v["name"] for v in vaults_response.json()]
         assert "Shared" in vault_names
 
-    def test_decline_vault_invitation(self, client, test_user, second_user):
+    def test_decline_vault_invitation(self, client, test_user, second_user, friends):
         """Test declining a vault invitation."""
         # Create pair vault and invite
         create_response = client.post("/vaults/",
-            json={"name": "Declined", "type": "pair"},
+            json={"name": "Declined", "type": "pair", "invitee_id": second_user["user_id"]},
             headers=test_user["headers"]
         )
         vault_id = create_response.json()["id"]
-        
-        user2_response = client.get("/users/me", headers=second_user["headers"])
-        invite_code = user2_response.json()["invite_code"]
-        
-        client.post(f"/vaults/{vault_id}/invite",
-            json={"invite_code": invite_code},
-            headers=test_user["headers"]
-        )
         
         # Second user declines
         response = client.post(f"/vaults/{vault_id}/decline", headers=second_user["headers"])
@@ -342,22 +307,15 @@ class TestVaultInvitations:
         vaults_response = client.get("/vaults/", headers=second_user["headers"])
         assert len(vaults_response.json()) == 0
 
-    def test_pair_vault_max_two_members(self, client, test_user, second_user):
+    def test_pair_vault_max_two_members(self, client, test_user, second_user, friends):
         """Test that pair vaults can't have more than 2 members."""
         # Create pair vault and add second user
         create_response = client.post("/vaults/",
-            json={"name": "Pair", "type": "pair"},
+            json={"name": "Pair", "type": "pair", "invitee_id": second_user["user_id"]},
             headers=test_user["headers"]
         )
         vault_id = create_response.json()["id"]
         
-        user2_response = client.get("/users/me", headers=second_user["headers"])
-        invite_code = user2_response.json()["invite_code"]
-        
-        client.post(f"/vaults/{vault_id}/invite",
-            json={"invite_code": invite_code},
-            headers=test_user["headers"]
-        )
         client.post(f"/vaults/{vault_id}/accept", headers=second_user["headers"])
         
         # Create a third user
@@ -384,22 +342,15 @@ class TestVaultInvitations:
 class TestLeaveVault:
     """Tests for DELETE /vaults/{id}/leave"""
 
-    def test_member_can_leave_vault(self, client, test_user, second_user):
+    def test_member_can_leave_vault(self, client, test_user, second_user, friends):
         """Test that a member can leave a vault."""
         # Create and invite
         create_response = client.post("/vaults/",
-            json={"name": "Leave Test", "type": "pair"},
+            json={"name": "Leave Test", "type": "pair", "invitee_id": second_user["user_id"]},
             headers=test_user["headers"]
         )
         vault_id = create_response.json()["id"]
         
-        user2_response = client.get("/users/me", headers=second_user["headers"])
-        invite_code = user2_response.json()["invite_code"]
-        
-        client.post(f"/vaults/{vault_id}/invite",
-            json={"invite_code": invite_code},
-            headers=test_user["headers"]
-        )
         client.post(f"/vaults/{vault_id}/accept", headers=second_user["headers"])
         
         # Second user leaves
@@ -420,4 +371,3 @@ class TestLeaveVault:
         
         response = client.delete(f"/vaults/{vault_id}/leave", headers=test_user["headers"])
         assert response.status_code == 400
-

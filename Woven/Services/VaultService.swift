@@ -37,19 +37,20 @@ final class VaultService {
     
     private var decoder: JSONDecoder {
         let decoder = JSONDecoder()
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        
+
         decoder.dateDecodingStrategy = .custom { decoder in
             let container = try decoder.singleValueContainer()
             let dateString = try container.decode(String.self)
-            
+
             // Try with fractional seconds first
-            if let date = formatter.date(from: dateString) {
+            let fractionalFormatter = ISO8601DateFormatter()
+            fractionalFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            if let date = fractionalFormatter.date(from: dateString) {
                 return date
             }
-            
+
             // Try without fractional seconds
+            let formatter = ISO8601DateFormatter()
             formatter.formatOptions = [.withInternetDateTime]
             if let date = formatter.date(from: dateString) {
                 return date
@@ -353,4 +354,3 @@ enum VaultServiceError: LocalizedError {
         }
     }
 }
-

@@ -351,7 +351,7 @@ struct SignUpFormView: View {
         
         Task {
             let name = fullName.isEmpty ? nil : fullName
-            await authManager.signUp(
+            _ = await authManager.signUp(
                 username: username,
                 email: email,
                 password: password,
@@ -416,4 +416,3 @@ struct AuthTextField: View {
     AuthView()
         .environmentObject(AuthenticationManager())
 }
-

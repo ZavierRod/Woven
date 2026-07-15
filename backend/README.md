@@ -53,6 +53,9 @@ backend/
 
 ## 🚀 Quick Start
 
+For the self-contained Pair Vault v2 SQLite relay and two-Simulator steps, see
+[`../docs/pair-vault-development.md`](../docs/pair-vault-development.md).
+
 ### 1. Start Database
 
 ```bash
@@ -82,8 +85,8 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
 ## 📖 API Documentation
 
-- **Swagger UI**: http://localhost:8001/docs
-- **ReDoc**: http://localhost:8001/redoc
+- **Swagger UI**: http://localhost:8000/docs
+- **ReDoc**: http://localhost:8000/redoc
 
 ## 🔧 Development
 
@@ -183,4 +186,3 @@ Based on `roadmap.md`:
 - **Strict mode** requires push approval for every unlock
 
 See `roadmap.md` for full cryptography details.
-

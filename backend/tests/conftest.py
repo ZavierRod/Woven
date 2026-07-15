@@ -74,9 +74,16 @@ def test_user(client):
     return {
         **user_data,
         "user_id": data["user_id"],
+        "invite_code": data["invite_code"],
         "token": data["access_token"],
         "headers": {"Authorization": f"Bearer {data['access_token']}"}
     }
+
+
+@pytest.fixture
+def test_user_token(test_user):
+    """Compatibility fixture for endpoint tests that only need the JWT."""
+    return test_user["token"]
 
 
 @pytest.fixture
@@ -94,7 +101,24 @@ def second_user(client):
     return {
         **user_data,
         "user_id": data["user_id"],
+        "invite_code": data["invite_code"],
         "token": data["access_token"],
         "headers": {"Authorization": f"Bearer {data['access_token']}"}
     }
 
+
+@pytest.fixture
+def friends(client, test_user, second_user):
+    """Create and accept the legacy friendship required by legacy Pair APIs."""
+    request = client.post(
+        "/friends/request",
+        json={"invite_code": second_user["invite_code"]},
+        headers=test_user["headers"],
+    )
+    assert request.status_code == 201
+    accepted = client.post(
+        f"/friends/requests/{request.json()['id']}/accept",
+        headers=second_user["headers"],
+    )
+    assert accepted.status_code == 200
+    return test_user, second_user

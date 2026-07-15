@@ -339,22 +339,15 @@ class TestDeleteMedia:
         view_response = client.get(f"/media/{media_id}/view", headers=test_user["headers"])
         assert view_response.status_code == 404
 
-    def test_delete_media_uploader(self, client, test_user, second_user):
+    def test_delete_media_uploader(self, client, test_user, second_user, friends):
         """Test media uploader (non-owner) deleting their own media."""
         # Create pair vault and add second user
         vault_response = client.post("/vaults/",
-            json={"name": "Shared Vault", "type": "pair"},
+            json={"name": "Shared Vault", "type": "pair", "invitee_id": second_user["user_id"]},
             headers=test_user["headers"]
         )
         vault_id = vault_response.json()["id"]
         
-        user2_response = client.get("/users/me", headers=second_user["headers"])
-        invite_code = user2_response.json()["invite_code"]
-        
-        client.post(f"/vaults/{vault_id}/invite",
-            json={"invite_code": invite_code},
-            headers=test_user["headers"]
-        )
         client.post(f"/vaults/{vault_id}/accept", headers=second_user["headers"])
         
         # User 2 uploads media
@@ -380,21 +373,14 @@ class TestDeleteMedia:
         
         assert response.status_code == 204
 
-    def test_delete_media_no_permission(self, client, test_user, second_user):
+    def test_delete_media_no_permission(self, client, test_user, second_user, friends):
         """Test that other users can't delete media they didn't upload."""
         vault_response = client.post("/vaults/",
-            json={"name": "Shared Vault", "type": "pair"},
+            json={"name": "Shared Vault", "type": "pair", "invitee_id": second_user["user_id"]},
             headers=test_user["headers"]
         )
         vault_id = vault_response.json()["id"]
         
-        user2_response = client.get("/users/me", headers=second_user["headers"])
-        invite_code = user2_response.json()["invite_code"]
-        
-        client.post(f"/vaults/{vault_id}/invite",
-            json={"invite_code": invite_code},
-            headers=test_user["headers"]
-        )
         client.post(f"/vaults/{vault_id}/accept", headers=second_user["headers"])
         
         # User 1 uploads media
@@ -463,5 +449,4 @@ class TestGetViewUrl:
         assert "view_url" in data
         assert "expires_in" in data
         assert data["expires_in"] > 0
-
 

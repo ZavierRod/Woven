@@ -9,4 +9,11 @@ from app.models.vault import Vault, VaultMember  # noqa
 from app.models.device import DeviceToken  # noqa
 from app.models.friendship import Friendship  # noqa
 from app.models.access_request import AccessRequest  # noqa
-
+from app.models.pair_v2 import (  # noqa
+    PairAccessRequestV2,
+    PairDeviceV2,
+    PairInvitationV2,
+    PairMediaV2,
+    PairMemberV2,
+    PairVaultV2,
+)

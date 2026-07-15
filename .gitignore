@@ -1,19 +1,43 @@
 # Sensitive
 *.p8
+*.p12
+*.pem
+*.key
+*.mobileprovision
 .env
+.env.*
+!.env.example
 .DS_Store
 
 # Python
 __pycache__/
 *.pyc
+.pytest_cache/
+.coverage
+htmlcov/
 venv/
 .venv/
 env/
 
+# Runtime databases and uploaded media
+*.db
+*.db-*
+*.sqlite
+*.sqlite3
+backend/storage/
+
 # Xcode / Swift
 DerivedData/
 build/
+.build/
+.swiftpm/
 *.xcworkspace
 !default.xcworkspace
 *.xcuserstate
-*.
+xcuserdata/
+*.xcresult/
+
+# Generated diagnostics and captures
+*.log
+screenshots/
+artifacts/

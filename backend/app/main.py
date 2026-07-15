@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import logging
 
 from app.core.config import settings
-from app.routers import auth_router, users_router, vaults_router, media_router, friends_router, devices_router, access_requests_router
+from app.routers import auth_router, users_router, vaults_router, media_router, friends_router, devices_router, access_requests_router, pair_v2_router
 from app.services.mdns import mdns_service
 
 logging.basicConfig(level=logging.INFO)
@@ -31,6 +31,7 @@ app.include_router(media_router)
 app.include_router(friends_router)
 app.include_router(devices_router)
 app.include_router(access_requests_router)
+app.include_router(pair_v2_router)
 
 
 @app.get("/")

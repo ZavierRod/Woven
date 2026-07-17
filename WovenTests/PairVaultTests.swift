@@ -19,7 +19,23 @@ struct PairVaultCryptographyTests {
         #expect(try cryptography.combine(shares.local, shares.partner) == vaultKey)
 
         let unrelatedShare = try cryptography.generateVaultKey()
-        #expect(try cryptography.combine(shares.local, unrelatedShare) != vaultKey)
+        let incorrectKey = try cryptography.combine(shares.local, unrelatedShare)
+        #expect(incorrectKey != vaultKey)
+
+        let aad = try cryptography.mediaAAD(
+            vaultID: "share-test-vault",
+            mediaID: "share-test-media",
+            membershipVersion: 1,
+            purpose: "media-blob"
+        )
+        let ciphertext = try cryptography.seal(
+            Data("two-shares-required".utf8),
+            vaultKey: vaultKey,
+            authenticatedData: aad
+        )
+        #expect(throws: (any Error).self) {
+            try cryptography.open(ciphertext, vaultKey: incorrectKey, authenticatedData: aad)
+        }
     }
 
     @Test
@@ -96,7 +112,7 @@ struct PairVaultCryptographyTests {
         }
 
         let key = try cryptography.generateVaultKey()
-        let plaintext = Data("recognizable-private-image".utf8)
+        let plaintext = Data([0xff, 0xd8, 0xff, 0xe0]) + Data("recognizable-private-image".utf8)
         let aad = try cryptography.mediaAAD(
             vaultID: "vault",
             mediaID: "media",
@@ -120,6 +136,30 @@ struct PairVaultCryptographyTests {
                     vaultID: "vault",
                     mediaID: "other-media",
                     membershipVersion: 1,
+                    purpose: "media-blob"
+                )
+            )
+        }
+        #expect(throws: (any Error).self) {
+            try cryptography.open(
+                sealed,
+                vaultKey: key,
+                authenticatedData: try cryptography.mediaAAD(
+                    vaultID: "other-vault",
+                    mediaID: "media",
+                    membershipVersion: 1,
+                    purpose: "media-blob"
+                )
+            )
+        }
+        #expect(throws: (any Error).self) {
+            try cryptography.open(
+                sealed,
+                vaultKey: key,
+                authenticatedData: try cryptography.mediaAAD(
+                    vaultID: "vault",
+                    mediaID: "media",
+                    membershipVersion: 2,
                     purpose: "media-blob"
                 )
             )
@@ -275,22 +315,27 @@ struct PairVaultTwoClientStateTests {
         await alice.approve(bobRequest)
         #expect(await authentication.count == 2)
         await bob.pollOnce()
+        #expect(Set(relay.requestEphemeralPublicKeys).count == relay.requestEphemeralPublicKeys.count)
         #expect(bob.decryptedMedia.first?.imageData == photo)
         let bobPhoto = Data("second-member-photo-plaintext-only-in-memory".utf8)
         await bob.importPhoto(bobPhoto)
         #expect(bob.decryptedMedia.contains(where: { $0.imageData == bobPhoto }))
         #expect(relay.serializedStorage().contains("second-member-photo-plaintext-only-in-memory") == false)
-        bob.lock()
+        bob.logout()
         #expect(bob.decryptedMedia.isEmpty)
+        #expect(bob.phase == .signedOut)
+        await bob.signIn(as: .bob)
         guard case .locked = bob.phase else {
-            Issue.record("Second member did not relock after becoming inactive")
+            Issue.record("Second member did not relock after logout and sign-in")
             return
         }
 
         let relaunchedAlice = PairVaultStore(
-            dependencies: dependencies(relay: relay, secrets: aliceSecrets) { _ in
-                await authentication.record()
-            }
+            dependencies: dependencies(
+                relay: relay,
+                secrets: aliceSecrets,
+                lockTimeout: .seconds(2)
+            ) { _ in await authentication.record() }
         )
         await relaunchedAlice.signIn(as: .alice)
         guard case .locked = relaunchedAlice.phase else {
@@ -311,6 +356,13 @@ struct PairVaultTwoClientStateTests {
         }
         #expect(relaunchedAlice.decryptedMedia.isEmpty)
         #expect(relay.mediaCount == 0)
+
+        try await Task.sleep(for: .milliseconds(2_100))
+        guard case .locked = relaunchedAlice.phase else {
+            Issue.record("Pair vault did not lock after its inactivity timeout")
+            return
+        }
+        #expect(relaunchedAlice.decryptedMedia.isEmpty)
 
         // A remotely revoked member must lose any reconstructed key and its
         // persisted local share on the next membership update.
@@ -333,9 +385,42 @@ struct PairVaultTwoClientStateTests {
         }
     }
 
+    @Test
+    func tamperedConsumedApprovalFailsClosedWithoutUnlocking() async throws {
+        let relay = EnforcingPairRelay()
+        let alice = PairVaultStore(dependencies: dependencies(relay: relay, secrets: InMemoryPairSecrets()))
+        let bob = PairVaultStore(dependencies: dependencies(relay: relay, secrets: InMemoryPairSecrets()))
+
+        await bob.signIn(as: .bob)
+        await alice.signIn(as: .alice)
+        await alice.createVault(named: "Tamper test")
+        let token = try #require(alice.invitationToken)
+        try await bob.refresh()
+        await bob.acceptInvitation(token: token)
+        try await alice.refresh()
+
+        await alice.requestAccess()
+        await bob.pollOnce()
+        let request = try #require(bob.incomingRequests.first)
+        await bob.approve(request)
+        relay.tamperNextConsumedEnvelope = true
+        await alice.pollOnce()
+
+        guard case .failed = alice.accessPhase else {
+            Issue.record("Tampered approval did not enter the failure state")
+            return
+        }
+        guard case .locked = alice.phase else {
+            Issue.record("Tampered approval unlocked the Pair vault")
+            return
+        }
+        #expect(alice.decryptedMedia.isEmpty)
+    }
+
     private func dependencies(
         relay: EnforcingPairRelay,
         secrets: InMemoryPairSecrets,
+        lockTimeout: Duration = .seconds(300),
         authenticate: @escaping @Sendable (String) async throws -> Void = { _ in }
     ) -> PairVaultDependencies {
         PairVaultDependencies(
@@ -343,6 +428,7 @@ struct PairVaultTwoClientStateTests {
             secrets: secrets,
             cryptography: PairVaultCryptography(),
             updates: PairDevelopmentPollingTransport(),
+            lockTimeout: lockTimeout,
             authenticate: authenticate
         )
     }
@@ -406,8 +492,12 @@ private final class EnforcingPairRelay: PairRelayAPI, @unchecked Sendable {
     private var invitationTokenHash = ""
     private var requests: [String: PairAccessRecord] = [:]
     private var media: [String: PairMediaRecord] = [:]
+    var tamperNextConsumedEnvelope = false
 
     var mediaCount: Int { media.count }
+    var requestEphemeralPublicKeys: [String] {
+        requests.values.map(\.context.requesterEphemeralPublicKey)
+    }
 
     func developmentSession(_ account: PairDevelopmentAccount) async throws -> PairSession {
         let id = account == .alice ? 1 : 2
@@ -634,7 +724,17 @@ private final class EnforcingPairRelay: PairRelayAPI, @unchecked Sendable {
             context: request.context,
             encryptedShareEnvelope: nil
         )
-        return PairConsumeResponse(status: "consumed", context: request.context, encryptedShareEnvelope: envelope)
+        var returnedEnvelope = envelope
+        if tamperNextConsumedEnvelope, var bytes = Data(base64Encoded: envelope), !bytes.isEmpty {
+            bytes[bytes.index(before: bytes.endIndex)] ^= 0x01
+            returnedEnvelope = bytes.base64EncodedString()
+            tamperNextConsumedEnvelope = false
+        }
+        return PairConsumeResponse(
+            status: "consumed",
+            context: request.context,
+            encryptedShareEnvelope: returnedEnvelope
+        )
     }
 
     func cancelAccessRequest(id: String, session: PairSession) async throws {

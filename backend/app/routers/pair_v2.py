@@ -323,6 +323,19 @@ def accept_invitation(
         raise conflict("Invitation no longer matches the Pair membership")
     if db.query(PairMemberV2).filter(PairMemberV2.vault_id == vault.id, PairMemberV2.user_id == user_id).first():
         raise conflict("Account is already a member")
+    transitioned = db.query(PairInvitationV2).filter(
+        PairInvitationV2.id == invitation_id,
+        PairInvitationV2.status == "pending",
+    ).update(
+        {
+            PairInvitationV2.status: "accepted",
+            PairInvitationV2.accepted_at_ms: current_ms,
+        },
+        synchronize_session=False,
+    )
+    if transitioned != 1:
+        db.rollback()
+        raise conflict("Invitation was already resolved")
     db.add(
         PairMemberV2(
             vault_id=vault.id,
@@ -333,11 +346,10 @@ def accept_invitation(
             joined_at_ms=current_ms,
         )
     )
-    invitation.status = "accepted"
-    invitation.accepted_at_ms = current_ms
     vault.status = "active"
     vault.updated_at_ms = current_ms
     db.commit()
+    db.refresh(invitation)
     return {
         "vault": vault_payload(db, vault),
         "invitation": invitation_payload(invitation),
@@ -517,10 +529,23 @@ def approve_access_request(
         raise conflict("Pair membership changed")
     if record.status != "pending":
         raise conflict(f"Access request is already {record.status}")
-    record.status = "approved"
-    record.encrypted_share_envelope = approval.encrypted_share_envelope
-    record.responded_at_ms = now_ms()
+    responded_at_ms = now_ms()
+    transitioned = db.query(PairAccessRequestV2).filter(
+        PairAccessRequestV2.id == request_id,
+        PairAccessRequestV2.status == "pending",
+    ).update(
+        {
+            PairAccessRequestV2.status: "approved",
+            PairAccessRequestV2.encrypted_share_envelope: approval.encrypted_share_envelope,
+            PairAccessRequestV2.responded_at_ms: responded_at_ms,
+        },
+        synchronize_session=False,
+    )
+    if transitioned != 1:
+        db.rollback()
+        raise conflict("Access request was already resolved")
     db.commit()
+    db.refresh(record)
     return request_payload(record)
 
 
@@ -535,10 +560,24 @@ def deny_access_request(
         raise HTTPException(status_code=404, detail="Access request not found")
     if record.approver_user_id != user_id:
         raise HTTPException(status_code=403, detail="Only the designated member can deny")
+    if expire_request_if_needed(record, now_ms()):
+        db.commit()
+        raise conflict("Access request expired")
     if record.status != "pending":
         raise conflict(f"Access request is already {record.status}")
-    record.status = "denied"
-    record.responded_at_ms = now_ms()
+    transitioned = db.query(PairAccessRequestV2).filter(
+        PairAccessRequestV2.id == request_id,
+        PairAccessRequestV2.status == "pending",
+    ).update(
+        {
+            PairAccessRequestV2.status: "denied",
+            PairAccessRequestV2.responded_at_ms: now_ms(),
+        },
+        synchronize_session=False,
+    )
+    if transitioned != 1:
+        db.rollback()
+        raise conflict("Access request was already resolved")
     db.commit()
     return {"status": "denied"}
 
@@ -564,9 +603,21 @@ def consume_access_request(
         raise conflict(f"Access request cannot be consumed from {record.status}")
     envelope = record.encrypted_share_envelope
     context = access_context(record)
-    record.status = "consumed"
-    record.consumed_at_ms = now_ms()
-    record.encrypted_share_envelope = None
+    transitioned = db.query(PairAccessRequestV2).filter(
+        PairAccessRequestV2.id == request_id,
+        PairAccessRequestV2.status == "approved",
+        PairAccessRequestV2.encrypted_share_envelope.is_not(None),
+    ).update(
+        {
+            PairAccessRequestV2.status: "consumed",
+            PairAccessRequestV2.consumed_at_ms: now_ms(),
+            PairAccessRequestV2.encrypted_share_envelope: None,
+        },
+        synchronize_session=False,
+    )
+    if transitioned != 1:
+        db.rollback()
+        raise conflict("Access request was already consumed or resolved")
     db.commit()
     return {"status": "consumed", "context": context, "encrypted_share_envelope": envelope}
 
@@ -582,11 +633,25 @@ def cancel_access_request(
         raise HTTPException(status_code=404, detail="Access request not found")
     if record.requester_user_id != user_id:
         raise HTTPException(status_code=403, detail="Only the requester can cancel")
+    if expire_request_if_needed(record, now_ms()):
+        db.commit()
+        raise conflict("Access request expired")
     if record.status not in {"pending", "approved"}:
         raise conflict(f"Access request is already {record.status}")
-    record.status = "cancelled"
-    record.encrypted_share_envelope = None
-    record.responded_at_ms = now_ms()
+    transitioned = db.query(PairAccessRequestV2).filter(
+        PairAccessRequestV2.id == request_id,
+        PairAccessRequestV2.status.in_(["pending", "approved"]),
+    ).update(
+        {
+            PairAccessRequestV2.status: "cancelled",
+            PairAccessRequestV2.encrypted_share_envelope: None,
+            PairAccessRequestV2.responded_at_ms: now_ms(),
+        },
+        synchronize_session=False,
+    )
+    if transitioned != 1:
+        db.rollback()
+        raise conflict("Access request was already resolved")
     db.commit()
     return {"status": "cancelled"}
 

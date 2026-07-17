@@ -3,6 +3,11 @@ Test configuration and fixtures.
 
 Uses a separate test database to avoid polluting production data.
 """
+import os
+
+os.environ.setdefault("DEBUG", "true")
+os.environ.setdefault("SECRET_KEY", "woven-backend-automated-tests-only-key")
+
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine

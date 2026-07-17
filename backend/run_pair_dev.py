@@ -4,6 +4,7 @@ import os
 
 os.environ.setdefault("DATABASE_URL", "sqlite:///./woven-pair-dev.db")
 os.environ.setdefault("DEBUG", "true")
+os.environ.setdefault("SECRET_KEY", "woven-pair-local-development-only-key")
 
 import uvicorn
 

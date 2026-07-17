@@ -121,6 +121,10 @@ SECRET_KEY=your-secret-key-change-in-production
 DEBUG=true
 ```
 
+`DEBUG` defaults to `false`, and non-debug startup requires a `SECRET_KEY` of
+at least 32 characters. The disposable Pair relay run script supplies its own
+local-only development key and must not be exposed as a production service.
+
 ## 📋 Current API Endpoints
 
 ### Authentication

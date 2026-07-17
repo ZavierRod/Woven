@@ -8,6 +8,7 @@ struct PairVaultDependencies: Sendable {
     let secrets: any PairSecretStore
     let cryptography: PairVaultCryptography
     let updates: any PairVaultUpdateTransport
+    let lockTimeout: Duration
     let authenticate: @Sendable (String) async throws -> Void
 
     static func live() -> Self {
@@ -16,6 +17,7 @@ struct PairVaultDependencies: Sendable {
             secrets: PairVaultKeychain(),
             cryptography: PairVaultCryptography(),
             updates: PairDevelopmentPollingTransport(),
+            lockTimeout: .seconds(300),
             authenticate: { reason in
                 try await PairDeviceAuthentication.authenticate(reason: reason)
             }
@@ -612,6 +614,11 @@ final class PairVaultStore {
             }
         } catch {
             if case .awaitingApproval = accessPhase {
+                requestEphemeralPrivateKey = nil
+                accessPhase = .failed(error.localizedDescription)
+                errorMessage = error.localizedDescription
+            } else if accessPhase == .approved {
+                requestEphemeralPrivateKey = nil
                 accessPhase = .failed(error.localizedDescription)
                 errorMessage = error.localizedDescription
             }
@@ -758,8 +765,9 @@ final class PairVaultStore {
 
     private func startLockTimeout() {
         lockTimeoutTask?.cancel()
+        let timeout = dependencies.lockTimeout
         lockTimeoutTask = Task { [weak self] in
-            try? await Task.sleep(for: .seconds(300))
+            try? await Task.sleep(for: timeout)
             guard !Task.isCancelled else { return }
             self?.lock()
         }

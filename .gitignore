@@ -25,6 +25,7 @@ env/
 *.sqlite
 *.sqlite3
 backend/storage/
+storage/
 
 # Xcode / Swift
 DerivedData/

@@ -1,5 +1,6 @@
 import os
 from dotenv import load_dotenv
+from pydantic import model_validator
 from pydantic_settings import BaseSettings
 
 load_dotenv()
@@ -8,7 +9,7 @@ load_dotenv()
 class Settings(BaseSettings):
     # App
     APP_NAME: str = "Woven API"
-    DEBUG: bool = True
+    DEBUG: bool = False
 
     # Database
     DATABASE_URL: str = os.getenv(
@@ -17,8 +18,7 @@ class Settings(BaseSettings):
     )
 
     # JWT
-    SECRET_KEY: str = os.getenv(
-        "SECRET_KEY", "supersecretkey-change-in-production")
+    SECRET_KEY: str = os.getenv("SECRET_KEY", "")
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
 
@@ -33,6 +33,12 @@ class Settings(BaseSettings):
     APNS_KEY_PATH: str | None = None
     APNS_BUNDLE_ID: str | None = None
     APNS_ENVIRONMENT: str = "sandbox"
+
+    @model_validator(mode="after")
+    def validate_security_configuration(self):
+        if not self.DEBUG and len(self.SECRET_KEY) < 32:
+            raise ValueError("SECRET_KEY must contain at least 32 characters when DEBUG is false")
+        return self
 
     class Config:
         env_file = ".env"

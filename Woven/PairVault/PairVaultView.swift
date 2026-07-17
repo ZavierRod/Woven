@@ -435,11 +435,30 @@ struct PairVaultScreen: View {
         case .approved:
             ProgressView("Consuming one-time approval…").tint(WovenTheme.accent)
         case .denied:
-            statusMessage("Partner denied this request.", symbol: "xmark.shield")
+            retryableStatus(
+                "Partner denied this request.",
+                symbol: "xmark.shield"
+            )
         case .expired:
-            statusMessage("This request expired. Create a fresh request.", symbol: "clock.badge.exclamationmark")
+            retryableStatus(
+                "This request expired. Create a fresh request.",
+                symbol: "clock.badge.exclamationmark"
+            )
         case .failed(let message):
-            statusMessage(message, symbol: "exclamationmark.triangle.fill")
+            retryableStatus(message, symbol: "exclamationmark.triangle.fill")
+        }
+    }
+
+    private func retryableStatus(_ message: String, symbol: String) -> some View {
+        VStack(spacing: WovenTheme.spacing12) {
+            statusMessage(message, symbol: symbol)
+            Button("Request Fresh Approval") {
+                Task { await store.requestAccess() }
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(WovenTheme.accent)
+            .disabled(store.isWorking)
+            .accessibilityLabel("Request fresh Pair vault approval")
         }
     }
 

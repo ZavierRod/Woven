@@ -4,9 +4,11 @@ import time
 import uuid
 
 from fastapi.testclient import TestClient
+import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
+from app.core.config import Settings
 from app.db.session import Base
 from app.deps import get_db
 from app.main import app
@@ -15,6 +17,14 @@ from app.models.pair_v2 import PairAccessRequestV2, PairInvitationV2, PairMediaV
 
 def b64(value: bytes) -> str:
     return base64.b64encode(value).decode("ascii")
+
+
+def test_non_debug_configuration_requires_a_strong_jwt_secret():
+    with pytest.raises(ValueError, match="SECRET_KEY"):
+        Settings(DEBUG=False, SECRET_KEY="short")
+
+    configured = Settings(DEBUG=False, SECRET_KEY="s" * 32)
+    assert configured.DEBUG is False
 
 
 def headers(token: str) -> dict:
@@ -321,6 +331,70 @@ def test_access_request_self_wrong_denied_cancelled_and_expired_paths_fail(clien
     ).status_code == 409
     db.refresh(record)
     assert record.status == "expired"
+
+
+def test_expired_request_cannot_be_relabelled_denied_or_cancelled(client, db):
+    alice, bob, alice_device, _, vault_id, invitation_id, raw_token, _ = pair_setup(client)
+    accept(client, bob, invitation_id, raw_token)
+
+    def expired_request(key_byte: bytes) -> tuple[str, PairAccessRequestV2]:
+        current_ms = int(time.time() * 1000)
+        request_id = str(uuid.uuid4())
+        response = client.post(
+            f"/pair-v2/vaults/{vault_id}/access-requests",
+            headers=headers(alice["access_token"]),
+            json={
+                "request_id": request_id,
+                "requester_device_id": alice_device["device_id"],
+                "requester_ephemeral_public_key": b64(key_byte * 32),
+                "created_at_ms": current_ms,
+                "expires_at_ms": current_ms + 60_000,
+            },
+        )
+        assert response.status_code == 201, response.text
+        record = db.query(PairAccessRequestV2).filter(PairAccessRequestV2.id == request_id).one()
+        record.expires_at_ms = int(time.time() * 1000) - 1
+        db.commit()
+        return request_id, record
+
+    denied_id, denied_record = expired_request(b"N")
+    denied = client.post(
+        f"/pair-v2/access-requests/{denied_id}/deny",
+        headers=headers(bob["access_token"]),
+    )
+    assert denied.status_code == 409
+    db.refresh(denied_record)
+    assert denied_record.status == "expired"
+
+    cancelled_id, cancelled_record = expired_request(b"L")
+    cancelled = client.post(
+        f"/pair-v2/access-requests/{cancelled_id}/cancel",
+        headers=headers(alice["access_token"]),
+    )
+    assert cancelled.status_code == 409
+    db.refresh(cancelled_record)
+    assert cancelled_record.status == "expired"
+
+
+def test_pair_request_size_limit_rejects_declared_and_chunked_oversized_bodies(client):
+    response = client.post(
+        "/pair-v2/devices",
+        headers={"Content-Length": str(21 * 1024 * 1024 + 1)},
+        content=b"{}",
+    )
+    assert response.status_code == 413
+
+    def oversized_chunks():
+        chunk = b"x" * (1024 * 1024)
+        for _ in range(22):
+            yield chunk
+
+    chunked = client.post(
+        "/pair-v2/devices",
+        headers={"Transfer-Encoding": "chunked"},
+        content=oversized_chunks(),
+    )
+    assert chunked.status_code == 413
 
 
 def test_encrypted_media_persists_and_plaintext_metadata_is_not_stored(client, db):

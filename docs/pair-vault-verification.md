@@ -1,5 +1,7 @@
 # Pair Vault independent verification report
 
+> Historical MVP baseline. This report records the 2026-07-16/17 local verification at commit `c49bca9`. Production-readiness hardening after that baseline is documented in `staging-readiness.md` and must not be inferred from this historical report.
+
 Verification date: 2026-07-16/17 (America/Los_Angeles)
 
 ## Scope and repository integrity

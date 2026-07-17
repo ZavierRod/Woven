@@ -1,6 +1,5 @@
 import uuid
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Enum as SQLEnum
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Enum as SQLEnum, Uuid
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 import enum
@@ -43,7 +42,7 @@ class Vault(Base):
     """
     __tablename__ = "vaults"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id = Column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
     name = Column(String, nullable=False)
     type = Column(SQLEnum(VaultType), default=VaultType.SOLO, nullable=False)
     mode = Column(SQLEnum(VaultMode), default=VaultMode.NORMAL, nullable=False)
@@ -76,7 +75,7 @@ class VaultMember(Base):
     __tablename__ = "vault_members"
 
     id = Column(Integer, primary_key=True, index=True)
-    vault_id = Column(UUID(as_uuid=True), ForeignKey("vaults.id", ondelete="CASCADE"), nullable=False)
+    vault_id = Column(Uuid(as_uuid=True), ForeignKey("vaults.id", ondelete="CASCADE"), nullable=False)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     role = Column(SQLEnum(MemberRole), default=MemberRole.MEMBER, nullable=False)
     status = Column(SQLEnum(MemberStatus), default=MemberStatus.PENDING, nullable=False)
@@ -94,5 +93,4 @@ class VaultMember(Base):
 
     def __repr__(self):
         return f"<VaultMember(vault_id={self.vault_id}, user_id={self.user_id}, role={self.role})>"
-
 

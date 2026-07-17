@@ -28,17 +28,31 @@ struct PairSession: Codable, Equatable, Sendable {
     }
 }
 
+struct PairAccountLookup: Codable, Sendable {
+    let userID: Int
+    let username: String
+
+    enum CodingKeys: String, CodingKey {
+        case userID = "user_id"
+        case username
+    }
+}
+
 struct PairDevice: Codable, Equatable, Sendable {
     let deviceID: String
     let userID: Int
     let agreementPublicKey: String
+    let signingPublicKey: String
     let createdAtMS: Int64
+    let revoked: Bool
 
     enum CodingKeys: String, CodingKey {
         case deviceID = "device_id"
         case userID = "user_id"
         case agreementPublicKey = "agreement_public_key"
+        case signingPublicKey = "signing_public_key"
         case createdAtMS = "created_at_ms"
+        case revoked
     }
 }
 

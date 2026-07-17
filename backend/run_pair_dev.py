@@ -2,9 +2,12 @@
 
 import os
 
-os.environ.setdefault("DATABASE_URL", "sqlite:///./woven-pair-dev.db")
+os.environ.setdefault("APP_ENV", "local")
 os.environ.setdefault("DEBUG", "true")
+os.environ.setdefault("PUBLIC_BASE_URL", "http://127.0.0.1:8000")
+os.environ.setdefault("DATABASE_URL", "sqlite:///./woven-pair-dev.db")
 os.environ.setdefault("SECRET_KEY", "woven-pair-local-development-only-key")
+os.environ.setdefault("REFRESH_TOKEN_PEPPER", "woven-pair-local-refresh-development-key")
 
 import uvicorn
 

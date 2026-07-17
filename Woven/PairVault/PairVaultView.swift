@@ -119,8 +119,8 @@ struct PairVaultScreen: View {
         .sheet(item: $sheet) { sheet in
             switch sheet {
             case .create:
-                PairVaultCreateView { name in
-                    await store.createVault(named: name)
+                PairVaultCreateView(requiresPartnerInviteCode: store.requiresPartnerInviteCode) { name, inviteCode in
+                    await store.createVault(named: name, partnerInviteCode: inviteCode)
                 }
             case .invitation(let invitation):
                 PairInvitationAcceptView(invitation: invitation) { token in
@@ -242,6 +242,7 @@ struct PairVaultScreen: View {
     }
 
     private var accountSelection: some View {
+        #if DEBUG
         ScrollView {
             VStack(spacing: WovenTheme.spacing24) {
                 Spacer(minLength: 52)
@@ -271,6 +272,13 @@ struct PairVaultScreen: View {
             }
             .padding(WovenTheme.spacing32)
         }
+        #else
+        ContentUnavailableView(
+            "Authentication required",
+            systemImage: "person.badge.key.fill",
+            description: Text("Sign in with Apple to use Pair Vault.")
+        )
+        #endif
     }
 
     private var loading: some View {
@@ -600,9 +608,11 @@ struct PairVaultScreen: View {
 }
 
 private struct PairVaultCreateView: View {
-    let create: (String) async -> Void
+    let requiresPartnerInviteCode: Bool
+    let create: (String, String?) async -> Void
     @Environment(\.dismiss) private var dismiss
     @State private var name = ""
+    @State private var inviteCode = ""
     @State private var submitting = false
 
     var body: some View {
@@ -612,6 +622,13 @@ private struct PairVaultCreateView: View {
                     TextField("Shared memories", text: $name)
                         .textInputAutocapitalization(.words)
                         .accessibilityLabel("Private Pair vault name")
+                }
+                if requiresPartnerInviteCode {
+                    Section("Partner invite code") {
+                        TextField("Invite code", text: $inviteCode)
+                            .textInputAutocapitalization(.characters)
+                            .autocorrectionDisabled()
+                    }
                 }
                 Section {
                     Text("The name is encrypted with the vault key; the relay receives only authenticated ciphertext.")
@@ -624,12 +641,16 @@ private struct PairVaultCreateView: View {
                     Button("Create") {
                         submitting = true
                         Task {
-                            await create(name)
+                            await create(name, requiresPartnerInviteCode ? inviteCode : nil)
                             submitting = false
                             dismiss()
                         }
                     }
-                    .disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || submitting)
+                    .disabled(
+                        name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
+                        (requiresPartnerInviteCode && inviteCode.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty) ||
+                        submitting
+                    )
                     .accessibilityLabel("Create encrypted Pair vault")
                 }
             }
@@ -757,6 +778,7 @@ private struct PairVaultPrivacyShield: View {
     }
 }
 
+#if DEBUG
 #Preview("Pair account selection") {
     PairVaultScreen(store: PairVaultStore())
 }
@@ -784,3 +806,4 @@ private let pairPreviewVault = PairVaultRecord(
         PairMember(userID: 2, deviceID: "bob-device", role: "partner", status: "active")
     ]
 )
+#endif

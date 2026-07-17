@@ -18,6 +18,10 @@
 	<string>$(MARKETING_VERSION)</string>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<key>WOVEN_ENVIRONMENT</key>
+	<string>$(WOVEN_ENVIRONMENT)</string>
+	<key>WOVEN_API_BASE_URL</key>
+	<string>$(WOVEN_API_BASE_URL)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSAppTransportSecurity</key>

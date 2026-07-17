@@ -3,12 +3,14 @@
 import base64
 import binascii
 import hmac
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.core.security import create_access_token, get_current_user_id
+from app.core.device_signatures import require_signed_device_request
+from app.core.security import get_current_user_id, issue_access_token
 from app.crud.user import user_crud
 from app.deps import get_db
 from app.models.pair_v2 import (
@@ -20,6 +22,7 @@ from app.models.pair_v2 import (
     PairVaultV2,
 )
 from app.models.user import User
+from app.models.auth import RefreshCredential
 from app.schemas.auth import SignUpRequest
 from app.schemas.pair_v2 import (
     AccessApprovalV2,
@@ -37,8 +40,10 @@ from app.services.pair_v2 import (
     require_active_pair_vault,
     token_hash,
 )
+from app.services.storage import storage_service
 
 router = APIRouter(prefix="/pair-v2", tags=["Pair Vault v2"])
+SIGNED_DEVICE_REQUEST = [Depends(require_signed_device_request)]
 
 MAX_INVITATION_LIFETIME_MS = 7 * 24 * 60 * 60 * 1000
 MAX_ACCESS_LIFETIME_MS = 5 * 60 * 1000
@@ -50,13 +55,13 @@ def conflict(message: str) -> HTTPException:
     return HTTPException(status_code=status.HTTP_409_CONFLICT, detail=message)
 
 
-def validate_public_key(value: str) -> None:
+def validate_public_key(value: str, label: str = "Agreement") -> None:
     try:
         raw = base64.b64decode(value, validate=True)
     except (binascii.Error, ValueError):
-        raise HTTPException(status_code=422, detail="Agreement public key must be valid Base64")
+        raise HTTPException(status_code=422, detail=f"{label} public key must be valid Base64")
     if len(raw) != 32:
-        raise HTTPException(status_code=422, detail="Agreement public key must contain 32 bytes")
+        raise HTTPException(status_code=422, detail=f"{label} public key must contain 32 bytes")
 
 
 def device_payload(device: PairDeviceV2) -> dict:
@@ -64,7 +69,9 @@ def device_payload(device: PairDeviceV2) -> dict:
         "device_id": device.id,
         "user_id": device.user_id,
         "agreement_public_key": device.agreement_public_key,
+        "signing_public_key": device.signing_public_key,
         "created_at_ms": device.created_at_ms,
+        "revoked": device.revoked,
     }
 
 
@@ -131,7 +138,7 @@ def vault_payload(db: Session, vault: PairVaultV2) -> dict:
 @router.post("/dev/session/{account}")
 def development_session(account: str, db: Session = Depends(get_db)):
     """Return a JWT for one of two deterministic local-development accounts."""
-    if not settings.DEBUG:
+    if not settings.development_auth_enabled:
         raise HTTPException(status_code=404, detail="Not found")
     normalized = account.lower()
     if normalized not in {"alice", "bob"}:
@@ -149,8 +156,9 @@ def development_session(account: str, db: Session = Depends(get_db)):
             ),
         )
     return {
-        "access_token": create_access_token({"sub": str(user.id)}),
-        "token_type": "bearer",
+        "access_token": issue_access_token(user),
+        # This is the OAuth authorization scheme label, not a credential.
+        "token_type": "bearer",  # nosec B105
         "user_id": user.id,
         "username": user.username,
         "email": user.email,
@@ -166,6 +174,7 @@ def register_device(
     db: Session = Depends(get_db),
 ):
     validate_public_key(request.agreement_public_key)
+    validate_public_key(request.signing_public_key, "Signing")
     existing_for_user = db.query(PairDeviceV2).filter(
         PairDeviceV2.user_id == user_id,
         PairDeviceV2.revoked.is_(False),
@@ -174,6 +183,7 @@ def register_device(
         if (
             existing_for_user.id == request.device_id
             and hmac.compare_digest(existing_for_user.agreement_public_key, request.agreement_public_key)
+            and hmac.compare_digest(existing_for_user.signing_public_key, request.signing_public_key)
         ):
             return device_payload(existing_for_user)
         raise conflict("This account already has an active Pair device")
@@ -183,6 +193,7 @@ def register_device(
         id=request.device_id,
         user_id=user_id,
         agreement_public_key=request.agreement_public_key,
+        signing_public_key=request.signing_public_key,
         created_at_ms=now_ms(),
         revoked=False,
     )
@@ -191,7 +202,63 @@ def register_device(
     return device_payload(device)
 
 
-@router.get("/devices/users/{target_user_id}")
+@router.get("/devices", dependencies=SIGNED_DEVICE_REQUEST)
+def list_devices(
+    user_id: int = Depends(get_current_user_id),
+    db: Session = Depends(get_db),
+):
+    return [
+        device_payload(device)
+        for device in db.query(PairDeviceV2).filter(PairDeviceV2.user_id == user_id).all()
+    ]
+
+
+@router.delete("/devices/{device_id}", dependencies=SIGNED_DEVICE_REQUEST)
+def revoke_device(
+    device_id: str,
+    user_id: int = Depends(get_current_user_id),
+    db: Session = Depends(get_db),
+):
+    device = db.query(PairDeviceV2).filter(
+        PairDeviceV2.id == device_id,
+        PairDeviceV2.user_id == user_id,
+        PairDeviceV2.revoked.is_(False),
+    ).with_for_update().first()
+    if device is None:
+        raise HTTPException(status_code=404, detail="Active Pair device not found")
+    device.revoked = True
+    affected_memberships = db.query(PairMemberV2).filter(
+        PairMemberV2.device_id == device_id,
+        PairMemberV2.status == "active",
+    ).all()
+    affected_vault_ids = [membership.vault_id for membership in affected_memberships]
+    for membership in affected_memberships:
+        membership.status = "revoked"
+    if affected_vault_ids:
+        vaults = db.query(PairVaultV2).filter(PairVaultV2.id.in_(affected_vault_ids)).all()
+        for vault in vaults:
+            vault.membership_version += 1
+            vault.status = "revoked"
+            vault.updated_at_ms = now_ms()
+        requests = db.query(PairAccessRequestV2).filter(
+            PairAccessRequestV2.vault_id.in_(affected_vault_ids),
+            PairAccessRequestV2.status.in_(["pending", "approved"]),
+        ).all()
+        for request in requests:
+            request.status = "cancelled"
+            request.encrypted_share_envelope = None
+    db.query(RefreshCredential).filter(
+        RefreshCredential.user_id == user_id,
+        RefreshCredential.device_id == device_id,
+        RefreshCredential.revoked_at.is_(None),
+    ).update({RefreshCredential.revoked_at: datetime.now(timezone.utc)}, synchronize_session=False)
+    user = db.query(User).filter(User.id == user_id).with_for_update().one()
+    user.auth_generation += 1
+    db.commit()
+    return {"status": "revoked", "device_id": device_id}
+
+
+@router.get("/devices/users/{target_user_id}", dependencies=SIGNED_DEVICE_REQUEST)
 def lookup_device(
     target_user_id: int,
     _: int = Depends(get_current_user_id),
@@ -206,7 +273,7 @@ def lookup_device(
     return device_payload(device)
 
 
-@router.post("/vaults", status_code=status.HTTP_201_CREATED)
+@router.post("/vaults", status_code=status.HTTP_201_CREATED, dependencies=SIGNED_DEVICE_REQUEST)
 def create_pair_vault(
     request: PairVaultCreateV2,
     user_id: int = Depends(get_current_user_id),
@@ -279,7 +346,7 @@ def create_pair_vault(
     }
 
 
-@router.get("/invitations")
+@router.get("/invitations", dependencies=SIGNED_DEVICE_REQUEST)
 def list_invitations(
     user_id: int = Depends(get_current_user_id),
     db: Session = Depends(get_db),
@@ -296,7 +363,7 @@ def list_invitations(
     return [invitation_payload(invitation) for invitation in invitations if invitation.status == "pending"]
 
 
-@router.post("/invitations/{invitation_id}/accept")
+@router.post("/invitations/{invitation_id}/accept", dependencies=SIGNED_DEVICE_REQUEST)
 def accept_invitation(
     invitation_id: str,
     request: InvitationAcceptV2,
@@ -356,7 +423,7 @@ def accept_invitation(
     }
 
 
-@router.post("/invitations/{invitation_id}/cancel")
+@router.post("/invitations/{invitation_id}/cancel", dependencies=SIGNED_DEVICE_REQUEST)
 def cancel_invitation(
     invitation_id: str,
     user_id: int = Depends(get_current_user_id),
@@ -379,7 +446,7 @@ def cancel_invitation(
     return {"status": "cancelled"}
 
 
-@router.get("/vaults")
+@router.get("/vaults", dependencies=SIGNED_DEVICE_REQUEST)
 def list_pair_vaults(
     user_id: int = Depends(get_current_user_id),
     db: Session = Depends(get_db),
@@ -411,7 +478,7 @@ def list_pair_vaults(
     return [vault_payload(db, vault) for vault in vaults]
 
 
-@router.get("/vaults/{vault_id}")
+@router.get("/vaults/{vault_id}", dependencies=SIGNED_DEVICE_REQUEST)
 def get_pair_vault(
     vault_id: str,
     user_id: int = Depends(get_current_user_id),
@@ -430,7 +497,11 @@ def get_pair_vault(
     return vault_payload(db, vault)
 
 
-@router.post("/vaults/{vault_id}/access-requests", status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/vaults/{vault_id}/access-requests",
+    status_code=status.HTTP_201_CREATED,
+    dependencies=SIGNED_DEVICE_REQUEST,
+)
 def create_access_request(
     vault_id: str,
     request: AccessRequestCreateV2,
@@ -475,7 +546,7 @@ def create_access_request(
     return request_payload(record)
 
 
-@router.get("/access-requests/incoming")
+@router.get("/access-requests/incoming", dependencies=SIGNED_DEVICE_REQUEST)
 def incoming_access_requests(
     user_id: int = Depends(get_current_user_id),
     db: Session = Depends(get_db),
@@ -493,7 +564,7 @@ def incoming_access_requests(
     return [request_payload(record) for record in records if record.status == "pending"]
 
 
-@router.get("/access-requests/{request_id}")
+@router.get("/access-requests/{request_id}", dependencies=SIGNED_DEVICE_REQUEST)
 def get_access_request(
     request_id: str,
     user_id: int = Depends(get_current_user_id),
@@ -509,7 +580,7 @@ def get_access_request(
     return request_payload(record)
 
 
-@router.post("/access-requests/{request_id}/approve")
+@router.post("/access-requests/{request_id}/approve", dependencies=SIGNED_DEVICE_REQUEST)
 def approve_access_request(
     request_id: str,
     approval: AccessApprovalV2,
@@ -549,7 +620,7 @@ def approve_access_request(
     return request_payload(record)
 
 
-@router.post("/access-requests/{request_id}/deny")
+@router.post("/access-requests/{request_id}/deny", dependencies=SIGNED_DEVICE_REQUEST)
 def deny_access_request(
     request_id: str,
     user_id: int = Depends(get_current_user_id),
@@ -582,7 +653,7 @@ def deny_access_request(
     return {"status": "denied"}
 
 
-@router.post("/access-requests/{request_id}/consume")
+@router.post("/access-requests/{request_id}/consume", dependencies=SIGNED_DEVICE_REQUEST)
 def consume_access_request(
     request_id: str,
     user_id: int = Depends(get_current_user_id),
@@ -622,7 +693,7 @@ def consume_access_request(
     return {"status": "consumed", "context": context, "encrypted_share_envelope": envelope}
 
 
-@router.post("/access-requests/{request_id}/cancel")
+@router.post("/access-requests/{request_id}/cancel", dependencies=SIGNED_DEVICE_REQUEST)
 def cancel_access_request(
     request_id: str,
     user_id: int = Depends(get_current_user_id),
@@ -656,7 +727,7 @@ def cancel_access_request(
     return {"status": "cancelled"}
 
 
-@router.delete("/vaults/{vault_id}/members/{target_user_id}")
+@router.delete("/vaults/{vault_id}/members/{target_user_id}", dependencies=SIGNED_DEVICE_REQUEST)
 def revoke_pair_member(
     vault_id: str,
     target_user_id: int,
@@ -688,7 +759,11 @@ def revoke_pair_member(
     return {"status": "revoked", "membership_version": vault.membership_version}
 
 
-@router.post("/vaults/{vault_id}/media", status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/vaults/{vault_id}/media",
+    status_code=status.HTTP_201_CREATED,
+    dependencies=SIGNED_DEVICE_REQUEST,
+)
 def upload_pair_media(
     vault_id: str,
     request: PairMediaCreateV2,
@@ -705,11 +780,14 @@ def upload_pair_media(
         raise HTTPException(status_code=413, detail="Encrypted media exceeds the development limit")
     if db.query(PairMediaV2).filter(PairMediaV2.id == request.media_id).first() is not None:
         raise conflict("Media identifier was already used")
+    storage_key = storage_service.generate_storage_key()
+    storage_service.save_file(storage_key, encrypted_bytes)
     record = PairMediaV2(
         id=request.media_id,
         vault_id=vault_id,
         uploader_user_id=user_id,
-        encrypted_blob=request.encrypted_blob,
+        encrypted_blob=None,
+        storage_key=storage_key,
         encrypted_metadata=request.encrypted_metadata,
         created_at_ms=request.created_at_ms,
     )
@@ -723,7 +801,7 @@ def upload_pair_media(
     }
 
 
-@router.get("/vaults/{vault_id}/media")
+@router.get("/vaults/{vault_id}/media", dependencies=SIGNED_DEVICE_REQUEST)
 def list_pair_media(
     vault_id: str,
     user_id: int = Depends(get_current_user_id),
@@ -742,7 +820,7 @@ def list_pair_media(
     ]
 
 
-@router.get("/vaults/{vault_id}/media/{media_id}")
+@router.get("/vaults/{vault_id}/media/{media_id}", dependencies=SIGNED_DEVICE_REQUEST)
 def download_pair_media(
     vault_id: str,
     media_id: str,
@@ -753,16 +831,27 @@ def download_pair_media(
     record = db.query(PairMediaV2).filter(PairMediaV2.id == media_id, PairMediaV2.vault_id == vault_id).first()
     if record is None:
         raise HTTPException(status_code=404, detail="Encrypted media not found")
+    if record.storage_key:
+        encrypted_bytes = storage_service.get_file(record.storage_key)
+        if encrypted_bytes is None:
+            raise HTTPException(status_code=404, detail="Encrypted media object not found")
+        encrypted_blob = base64.b64encode(encrypted_bytes).decode("ascii")
+    else:
+        encrypted_blob = record.encrypted_blob
     return {
         "media_id": record.id,
         "vault_id": record.vault_id,
-        "encrypted_blob": record.encrypted_blob,
+        "encrypted_blob": encrypted_blob,
         "encrypted_metadata": record.encrypted_metadata,
         "created_at_ms": record.created_at_ms,
     }
 
 
-@router.delete("/vaults/{vault_id}/media/{media_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/vaults/{vault_id}/media/{media_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=SIGNED_DEVICE_REQUEST,
+)
 def delete_pair_media(
     vault_id: str,
     media_id: str,
@@ -773,6 +862,8 @@ def delete_pair_media(
     record = db.query(PairMediaV2).filter(PairMediaV2.id == media_id, PairMediaV2.vault_id == vault_id).first()
     if record is None:
         raise HTTPException(status_code=404, detail="Encrypted media not found")
+    if record.storage_key:
+        storage_service.delete_file(record.storage_key)
     db.delete(record)
     db.commit()
     return None

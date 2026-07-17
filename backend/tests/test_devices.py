@@ -35,7 +35,7 @@ async def test_apns_service_send():
             service.key_path = "/tmp/fake.p8"
             service.bundle_id = "com.test.app"
             
-            success = await service.send_notification(
+            await service.send_notification(
                 device_token="test_token",
                 title="Test",
                 body="Body"

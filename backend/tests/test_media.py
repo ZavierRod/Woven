@@ -1,7 +1,6 @@
 """
 Tests for media endpoints.
 """
-import pytest
 import io
 from uuid import uuid4
 

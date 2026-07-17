@@ -1,16 +1,13 @@
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
-from typing import List
 from uuid import UUID
-import os
 
 from app.deps import get_db
 from app.core.security import get_current_user_id
 from app.crud.media import media_crud
 from app.crud.vault import vault_crud
 from app.crud.user import user_crud
-from app.schemas.user import UserResponse
 from app.schemas.media import (
     MediaCreate,
     MediaResponse,

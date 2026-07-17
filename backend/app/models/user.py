@@ -22,6 +22,7 @@ class User(Base):
     
     # Apple Sign In (for future use)
     apple_user_id = Column(String, unique=True, index=True, nullable=True)
+    auth_generation = Column(Integer, nullable=False, default=0)
     
     # Encryption
     public_key = Column(String, nullable=True)
@@ -34,6 +35,7 @@ class User(Base):
     owned_vaults = relationship("Vault", back_populates="owner")
     vault_memberships = relationship("VaultMember", back_populates="user")
     devices = relationship("DeviceToken", back_populates="user", cascade="all, delete-orphan")
+    refresh_credentials = relationship("RefreshCredential", cascade="all, delete-orphan", back_populates="user")
 
     def __repr__(self):
         return f"<User(id={self.id}, username={self.username})>"

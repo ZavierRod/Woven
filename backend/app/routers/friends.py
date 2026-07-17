@@ -1,6 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from sqlalchemy.orm import Session
-from typing import List
 
 from app.deps import get_db
 from app.core.security import get_current_user_id

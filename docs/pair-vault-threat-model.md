@@ -225,25 +225,23 @@ thumbnails, shares, or content keys in the Pair v2 path.
 
 ## Development-only behavior
 
-- Deterministic Alice/Bob development accounts and tokens are exposed only when
-  backend `DEBUG` is enabled and are labeled in the UI.
+- Deterministic Alice/Bob development accounts and tokens are exposed only in
+  `local`/`test`; remote routes return 404 and Release presentation excludes the selector.
 - A polling notification adapter replaces APNs for local verification. It is
   not production push delivery.
 - One active device per account is enforced.
-- Local HTTP and Base64 ciphertext stored in a local SQLite database are
-  development transports. Production requires TLS, hardened authentication,
-  rate limits, audited storage controls, APNs credentials, and
-  migration/operations work.
+- Local HTTP, SQLite, and ignored filesystem ciphertext are development
+  transports. Staging/production require HTTPS, PostgreSQL, private object
+  storage, real Apple authentication, signed device requests, restricted hosts,
+  rate limits, and explicit migration/operations configuration.
 - Simulator LocalAuthentication and privacy/capture behavior do not reproduce a
   physical device's complete hardware-backed threat model.
 
 ## Production work not claimed by this MVP
 
-- Authenticated device-key verification, end-to-end access-request signatures,
-  multi-device enrollment, key rotation, recovery, replacement-device
-  enrollment, and forward-secure revocation.
-- Production Sign in with Apple verification and account-deletion workflows.
-- APNs delivery, server-side rate limiting/abuse controls, audit retention, and
-  operational key management.
+- Multi-device enrollment, key rotation, recovery, replacement-device policy,
+  account deletion, and forward-secure revocation.
+- APNs delivery, retained security audit events, mature abuse escalation, and
+  production operational key ownership. Polling remains the declared transport.
 - Guaranteed screenshot prevention, external-camera prevention, or guaranteed
   zeroization of Swift/OS memory copies.

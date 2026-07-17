@@ -4,6 +4,7 @@ import Security
 
 protocol PairSecretStore: Sendable {
     func identityPrivateKey(accountID: Int, cryptography: PairVaultCryptography) throws -> Data
+    func signingPrivateKey(accountID: Int, cryptography: PairVaultCryptography) throws -> Data
     func saveShare(_ share: Data, vaultID: String, accountID: Int) throws
     func share(vaultID: String, accountID: Int) throws -> Data
     func deleteShare(vaultID: String, accountID: Int)
@@ -19,6 +20,14 @@ final class PairVaultKeychain: PairSecretStore, @unchecked Sendable {
         let key = "identity.\(accountID)"
         if let existing = try read(key) { return existing }
         let created = cryptography.generateIdentityPrivateKey()
+        try save(created, key: key)
+        return created
+    }
+
+    func signingPrivateKey(accountID: Int, cryptography: PairVaultCryptography) throws -> Data {
+        let key = "signing.\(accountID)"
+        if let existing = try read(key) { return existing }
+        let created = cryptography.generateSigningPrivateKey()
         try save(created, key: key)
         return created
     }

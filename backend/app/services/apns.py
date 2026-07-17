@@ -3,7 +3,7 @@ import time
 import jwt
 import httpx
 import json
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 
 class APNsService:
     """Send push notifications via Apple Push Notification service."""

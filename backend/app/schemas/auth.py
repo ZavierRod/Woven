@@ -38,7 +38,6 @@ class LoginRequest(BaseModel):
 
 
 class Token(BaseModel):
-    """JWT token response."""
     access_token: str
     token_type: str = "bearer"
 
@@ -54,8 +53,20 @@ class AuthResponse(BaseModel):
     invite_code: str
 
 
-# Keep for future Apple Sign In support
 class AppleSignInRequest(BaseModel):
     identity_token: str
-    first_name: Optional[str] = None
-    last_name: Optional[str] = None
+    nonce: str
+    full_name: Optional[str] = None
+    device_id: Optional[str] = None
+
+
+class RefreshRequest(BaseModel):
+    refresh_token: str
+
+
+class LogoutRequest(BaseModel):
+    refresh_token: str
+
+
+class SessionResponse(AuthResponse):
+    refresh_token: str

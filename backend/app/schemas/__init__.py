@@ -26,6 +26,9 @@ from app.schemas.friendship import (
 )
 
 __all__ = [
+    "SignUpRequest",
+    "LoginRequest",
+    "AuthResponse",
     "AppleSignInRequest",
     "Token",
     "UserCreate",

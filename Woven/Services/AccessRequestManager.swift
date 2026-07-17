@@ -99,7 +99,7 @@ final class AccessRequestManager: ObservableObject {
         if let discoveredURL = BackendDiscoveryService.shared.discoveredURL {
             return discoveredURL
         }
-        return "http://192.168.1.117:8000" // Fallback
+        return AppConfiguration.configuredBaseURLString
     }
     
     private func getAuthToken() -> String? {

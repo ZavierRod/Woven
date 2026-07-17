@@ -1,8 +1,8 @@
 # Pair Vault v2 development runbook
 
-Pair Vault v2 is an isolated development protocol. It does not use the legacy
-Pair endpoints, legacy full-vault-key storage, APNs payload path, or Sign in
-with Apple placeholder verifier.
+Pair Vault v2 has both local and remote account entry paths. This runbook covers
+only the isolated local path; staging uses the same encrypted Pair protocol with
+real Apple accounts and signed enrolled-device requests.
 
 ## Start the persistent local relay
 
@@ -23,7 +23,8 @@ command.
 
 1. Boot two disposable iPhone Simulators and launch Woven in both.
 2. Open the Pair tab. Continue as Bob on one Simulator, then as Alice on the
-   other. This registers one Curve25519 public device identity per account.
+   other. This registers separate Curve25519 agreement and Ed25519 signing
+   public keys per account.
 3. Alice creates a Pair vault and transfers the displayed one-time code to Bob
    out of band. The relay stores only the SHA-256 hash of that code.
 4. Bob opens the pending invitation, enters the code, and accepts. Bob's share
@@ -54,10 +55,12 @@ two-client state harness.
 
 ## Development-only behavior
 
-- `POST /pair-v2/dev/session/alice` and `/bob` issue JWTs only when `DEBUG` is
-  enabled. They are deterministic test identities, not production auth.
+- `POST /pair-v2/dev/session/alice` and `/bob` issue JWTs only when `APP_ENV` is
+  `local` or `test`. They return 404 in staging/production and the selector is
+  compiled out of Release presentation.
 - Polling replaces APNs for invitations and access requests.
-- The relay stores Base64-encoded encrypted blobs in the development database.
+- The relay stores encrypted media under opaque keys in ignored local
+  filesystem storage; the database retains encrypted metadata and object keys.
 - One active device is enforced per account. Multi-device enrollment and key
   recovery are deferred.
 - The complete security analysis and production gaps are in

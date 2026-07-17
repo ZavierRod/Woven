@@ -5,7 +5,7 @@ import Foundation
 final class VaultService {
     static let shared = VaultService()
     
-    private let fallbackURL = "http://192.168.1.117:8000"
+    private let fallbackURL = AppConfiguration.configuredBaseURLString
     
     private init() {}
     

@@ -5,8 +5,14 @@ Uses a separate test database to avoid polluting production data.
 """
 import os
 
-os.environ.setdefault("DEBUG", "true")
+os.environ.setdefault("APP_ENV", "test")
+os.environ.setdefault("DEBUG", "false")
+os.environ.setdefault("DATABASE_URL", "sqlite:///:memory:")
+os.environ.setdefault("PUBLIC_BASE_URL", "http://testserver")
 os.environ.setdefault("SECRET_KEY", "woven-backend-automated-tests-only-key")
+os.environ.setdefault("REFRESH_TOKEN_PEPPER", "woven-backend-refresh-tests-only-key")
+os.environ.setdefault("RATE_LIMIT_AUTH_PER_MINUTE", "10000")
+os.environ.setdefault("RATE_LIMIT_PAIR_PER_MINUTE", "10000")
 
 import pytest
 from fastapi.testclient import TestClient

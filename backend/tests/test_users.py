@@ -1,7 +1,6 @@
 """
 Tests for user endpoints.
 """
-import pytest
 
 
 class TestGetCurrentUser:

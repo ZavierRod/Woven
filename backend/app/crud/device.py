@@ -1,6 +1,6 @@
 from sqlalchemy.orm import Session
 from datetime import datetime
-from typing import List, Optional
+from typing import List
 
 from app.models.device import DeviceToken
 from app.schemas.device import DeviceRegisterRequest

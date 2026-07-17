@@ -1,9 +1,17 @@
+import CryptoKit
 import Foundation
 
 @MainActor
 protocol PairRelayAPI: Sendable {
+    func configureDeviceSigning(accountID: Int, deviceID: String, privateKey: Data)
     func developmentSession(_ account: PairDevelopmentAccount) async throws -> PairSession
-    func registerDevice(session: PairSession, deviceID: String, publicKey: Data) async throws -> PairDevice
+    func account(inviteCode: String, session: PairSession) async throws -> PairAccountLookup
+    func registerDevice(
+        session: PairSession,
+        deviceID: String,
+        agreementPublicKey: Data,
+        signingPublicKey: Data
+    ) async throws -> PairDevice
     func device(for userID: Int, session: PairSession) async throws -> PairDevice
     func createVault(
         session: PairSession,
@@ -49,15 +57,23 @@ protocol PairRelayAPI: Sendable {
     func revokeMember(vaultID: String, userID: Int, session: PairSession) async throws
 }
 
+extension PairRelayAPI {
+    func configureDeviceSigning(accountID: Int, deviceID: String, privateKey: Data) {}
+    func account(inviteCode: String, session: PairSession) async throws -> PairAccountLookup {
+        throw PairVaultError.relay("Account lookup is unavailable in this relay.")
+    }
+}
+
 @MainActor
 final class PairVaultAPIClient: PairRelayAPI, @unchecked Sendable {
     private let baseURL: URL
     private let session: URLSession
-    private let encoder = JSONEncoder()
+    private let encoder = JSONEncoder.pairCanonical
     private let decoder = JSONDecoder()
+    private var signingContext: SigningContext?
 
-    init(baseURL: URL = URL(string: "http://127.0.0.1:8000")!) {
-        self.baseURL = baseURL
+    init(baseURL: URL? = nil) {
+        self.baseURL = baseURL ?? (try? AppConfiguration.load().apiBaseURL) ?? URL(string: "woven-invalid://configuration")!
         let configuration = URLSessionConfiguration.ephemeral
         configuration.urlCache = nil
         configuration.requestCachePolicy = .reloadIgnoringLocalAndRemoteCacheData
@@ -66,16 +82,39 @@ final class PairVaultAPIClient: PairRelayAPI, @unchecked Sendable {
         session = URLSession(configuration: configuration)
     }
 
+    func configureDeviceSigning(accountID: Int, deviceID: String, privateKey: Data) {
+        signingContext = SigningContext(accountID: accountID, deviceID: deviceID, privateKey: privateKey)
+    }
+
     func developmentSession(_ account: PairDevelopmentAccount) async throws -> PairSession {
         try await send(path: "/pair-v2/dev/session/\(account.rawValue)", method: "POST", token: nil, body: EmptyBody())
     }
 
-    func registerDevice(session: PairSession, deviceID: String, publicKey: Data) async throws -> PairDevice {
+    func account(inviteCode: String, session: PairSession) async throws -> PairAccountLookup {
+        let encoded = inviteCode.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? inviteCode
+        return try await send(
+            path: "/users/\(encoded)",
+            method: "GET",
+            token: session.accessToken,
+            body: EmptyBody()
+        )
+    }
+
+    func registerDevice(
+        session: PairSession,
+        deviceID: String,
+        agreementPublicKey: Data,
+        signingPublicKey: Data
+    ) async throws -> PairDevice {
         try await send(
             path: "/pair-v2/devices",
             method: "POST",
             token: session.accessToken,
-            body: DeviceBody(deviceID: deviceID, agreementPublicKey: publicKey.base64EncodedString())
+            body: DeviceBody(
+                deviceID: deviceID,
+                agreementPublicKey: agreementPublicKey.base64EncodedString(),
+                signingPublicKey: signingPublicKey.base64EncodedString()
+            )
         )
     }
 
@@ -257,11 +296,59 @@ final class PairVaultAPIClient: PairRelayAPI, @unchecked Sendable {
         request.httpMethod = method
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         if let token { request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization") }
+        let bodyData: Data
         if method != "GET" && method != "DELETE" {
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-            request.httpBody = try encoder.encode(body)
+            bodyData = try encoder.encode(body)
+            request.httpBody = bodyData
+        } else {
+            bodyData = Data()
+        }
+        if token != nil,
+           path != "/pair-v2/devices",
+           !path.hasPrefix("/pair-v2/dev/session/") {
+            try sign(&request, path: path, method: method, body: bodyData)
         }
         return request
+    }
+
+    private func sign(_ request: inout URLRequest, path: String, method: String, body: Data) throws {
+        guard let signingContext else {
+            throw PairVaultError.relay("This device must be enrolled before using Pair Vault.")
+        }
+        let timestamp = Int64(Date().timeIntervalSince1970 * 1_000)
+        let requestID = UUID().uuidString.lowercased()
+        let nonce = Data(UUID().uuidString.utf8).base64EncodedString()
+        let vaultID = vaultID(from: path) ?? ""
+        let canonical = SignedRequestFields(
+            accountID: signingContext.accountID,
+            bodySHA256: SHA256.hash(data: body).map { String(format: "%02x", $0) }.joined(),
+            deviceID: signingContext.deviceID,
+            httpMethod: method.uppercased(),
+            nonce: nonce,
+            path: path,
+            protocolName: "woven-pair-v2",
+            requestID: requestID,
+            timestampMS: timestamp,
+            vaultID: vaultID
+        )
+        let message = try encoder.encode(canonical)
+        let signature = try PairVaultCryptography().sign(message, privateKey: signingContext.privateKey)
+        request.setValue("woven-pair-v2", forHTTPHeaderField: "X-Woven-Protocol")
+        request.setValue(signingContext.deviceID, forHTTPHeaderField: "X-Woven-Device-ID")
+        request.setValue(requestID, forHTTPHeaderField: "X-Woven-Request-ID")
+        request.setValue(String(timestamp), forHTTPHeaderField: "X-Woven-Timestamp-MS")
+        request.setValue(nonce, forHTTPHeaderField: "X-Woven-Nonce")
+        if !vaultID.isEmpty { request.setValue(vaultID, forHTTPHeaderField: "X-Woven-Vault-ID") }
+        request.setValue(signature.base64EncodedString(), forHTTPHeaderField: "X-Woven-Signature")
+    }
+
+    private func vaultID(from path: String) -> String? {
+        let components = path.split(separator: "/").map(String.init)
+        guard components.count >= 3,
+              components[0] == "pair-v2",
+              components[1] == "vaults" else { return nil }
+        return components[2]
     }
 
     private func validate(response: URLResponse, data: Data) throws {
@@ -280,7 +367,43 @@ private struct RelayStatus: Codable { let status: String }
 private struct DeviceBody: Codable {
     let deviceID: String
     let agreementPublicKey: String
-    enum CodingKeys: String, CodingKey { case deviceID = "device_id"; case agreementPublicKey = "agreement_public_key" }
+    let signingPublicKey: String
+    enum CodingKeys: String, CodingKey {
+        case deviceID = "device_id"
+        case agreementPublicKey = "agreement_public_key"
+        case signingPublicKey = "signing_public_key"
+    }
+}
+
+private struct SigningContext {
+    let accountID: Int
+    let deviceID: String
+    let privateKey: Data
+}
+
+private struct SignedRequestFields: Encodable {
+    let accountID: Int
+    let bodySHA256: String
+    let deviceID: String
+    let httpMethod: String
+    let nonce: String
+    let path: String
+    let protocolName: String
+    let requestID: String
+    let timestampMS: Int64
+    let vaultID: String
+
+    enum CodingKeys: String, CodingKey {
+        case accountID = "account_id"
+        case bodySHA256 = "body_sha256"
+        case deviceID = "device_id"
+        case httpMethod = "http_method"
+        case nonce, path
+        case protocolName = "protocol"
+        case requestID = "request_id"
+        case timestampMS = "timestamp_ms"
+        case vaultID = "vault_id"
+    }
 }
 
 private struct VaultCreateBody: Codable {

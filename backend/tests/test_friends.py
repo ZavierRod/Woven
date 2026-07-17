@@ -1,7 +1,6 @@
 """
 Tests for friends endpoints.
 """
-import pytest
 
 
 class TestSendFriendRequest:

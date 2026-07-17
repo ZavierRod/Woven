@@ -1,192 +1,49 @@
-# Woven Backend
+# Woven FastAPI service
 
-FastAPI backend for the Woven iOS application - a secure, encrypted vault for private media.
+The service authenticates accounts and enrolled devices, enforces Pair membership and access-request transitions, and stores only ciphertext plus operational metadata. It must never receive a vault key, key share, decrypted media, plaintext thumbnail, Apple identity token in logs, or raw refresh credential in storage.
 
-## 🏗️ Project Structure
+## Environments
 
-```
-backend/
-├── alembic/                 # Database migrations
-│   ├── versions/            # Migration files
-│   ├── env.py               # Alembic configuration
-│   └── README.md            # Migration guide
-├── app/
-│   ├── core/                # Configuration & security
-│   │   ├── config.py        # Settings (env vars)
-│   │   ├── security.py      # JWT & auth helpers
-│   │   └── README.md
-│   ├── crud/                # Database operations
-│   │   ├── user.py          # User CRUD
-│   │   ├── vault.py         # Vault & VaultMember CRUD
-│   │   └── README.md
-│   ├── db/                  # Database setup
-│   │   ├── base.py          # Model registry
-│   │   ├── session.py       # Engine & session
-│   │   └── README.md
-│   ├── models/              # SQLAlchemy models
-│   │   ├── user.py          # User model
-│   │   ├── vault.py         # Vault & VaultMember models
-│   │   └── README.md
-│   ├── routers/             # API endpoints
-│   │   ├── auth.py          # /auth/* endpoints
-│   │   ├── users.py         # /users/* endpoints
-│   │   ├── vaults.py        # /vaults/* endpoints
-│   │   └── README.md
-│   ├── schemas/             # Pydantic schemas
-│   │   ├── auth.py          # Auth request/response
-│   │   ├── user.py          # User request/response
-│   │   ├── vault.py         # Vault request/response
-│   │   └── README.md
-│   ├── services/            # Business logic
-│   │   └── README.md
-│   ├── deps.py              # Shared dependencies
-│   ├── main.py              # FastAPI app
-│   └── README.md
-├── alembic.ini              # Alembic config
-├── docker-compose.yml       # PostgreSQL container
-├── .gitignore
-├── README.md                # This file
-└── requirements.txt         # Dependencies
-```
+| `APP_ENV` | Database | media storage | account entry | device signatures | discovery/docs |
+|---|---|---|---|---|---|
+| `local` | SQLite or PostgreSQL | local filesystem | password + deterministic Pair accounts | optional | mDNS and API docs enabled |
+| `test` | SQLite | isolated local adapter | test password accounts | test-selectable | no mDNS |
+| `staging` | PostgreSQL required | private S3-compatible object store required | Sign in with Apple | required | no mDNS or API docs |
+| `production` | PostgreSQL required | private S3-compatible object store required | Sign in with Apple | required | no mDNS or API docs |
 
-> 📚 **Each folder has a README.md** explaining current contents and future additions based on the roadmap.
+Remote startup rejects debug mode, HTTP/public localhost URLs, SQLite, local media storage, missing Apple audience, missing trusted hosts, wildcard CORS, weak secrets, or disabled device signatures.
 
-## 🚀 Quick Start
-
-For the self-contained Pair Vault v2 SQLite relay and two-Simulator steps, see
-[`../docs/pair-vault-development.md`](../docs/pair-vault-development.md).
-
-### 1. Start Database
+## Local development
 
 ```bash
-docker compose up -d
-```
-
-### 2. Install Dependencies
-
-```bash
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+cp .env.example .env
+python3 -m venv .venv
+source .venv/bin/activate
 pip install -r requirements.txt
-```
-
-### 3. Run Migrations
-
-```bash
-# Apply all migrations
 alembic upgrade head
+uvicorn app.main:app --reload
 ```
 
-### 4. Start Server
+For the disposable Pair relay with deterministic accounts, use `python run_pair_dev.py`. Do not expose that process to an untrusted network.
+
+## Verification
 
 ```bash
-uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+pytest -q
+ruff check app tests
+bandit -q -r app -x tests
+pip-audit -r requirements.txt
+alembic check
 ```
 
-## 📖 API Documentation
+CI also upgrades, downgrades, and re-upgrades the migration head against PostgreSQL, scans Git history for secrets, analyzes the Release iOS target, and runs all iOS tests.
 
-- **Swagger UI**: http://localhost:8000/docs
-- **ReDoc**: http://localhost:8000/redoc
+## Operations
 
-## 🔧 Development
+- `GET /health` is a minimal liveness response.
+- `GET /ready` checks database connectivity without disclosing configuration.
+- Responses carry request IDs, no-store policy, clickjacking/content-sniffing protections, and HSTS remotely.
+- Logs are structured and contain operational summaries only. Credentials and request bodies are not logged.
+- HTTPS terminates at the deployment ingress; the API container trusts forwarded headers only inside that controlled network.
 
-### Create a New Migration
-
-After modifying models:
-```bash
-alembic revision --autogenerate -m "Description of changes"
-alembic upgrade head
-```
-
-### Rollback a Migration
-
-```bash
-alembic downgrade -1
-```
-
-### View Migration Status
-
-```bash
-alembic current
-alembic history
-```
-
-## ⚙️ Environment Variables
-
-Create a `.env` file:
-
-```env
-DATABASE_URL=postgresql://woven_user:woven_password@localhost:5433/woven
-SECRET_KEY=your-secret-key-change-in-production
-DEBUG=true
-```
-
-`DEBUG` defaults to `false`, and non-debug startup requires a `SECRET_KEY` of
-at least 32 characters. The disposable Pair relay run script supplies its own
-local-only development key and must not be exposed as a production service.
-
-## 📋 Current API Endpoints
-
-### Authentication
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/auth/signup` | Register with email/password |
-| POST | `/auth/login` | Login with email/username + password |
-
-### Users
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/users/me` | Get current user profile |
-| GET | `/users/{invite_code}` | Find user by invite code |
-
-### Vaults
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/vaults/` | Create a new vault |
-| GET | `/vaults/` | List user's vaults |
-| GET | `/vaults/{id}` | Get vault details |
-| PATCH | `/vaults/{id}` | Update vault settings |
-| DELETE | `/vaults/{id}` | Delete vault (owner only) |
-| POST | `/vaults/{id}/invite` | Invite user to pair vault |
-| GET | `/vaults/invites/pending` | Get pending invitations |
-| POST | `/vaults/{id}/accept` | Accept vault invitation |
-| POST | `/vaults/{id}/decline` | Decline vault invitation |
-| DELETE | `/vaults/{id}/leave` | Leave vault (non-owner) |
-
-### Media
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/media/` | Upload encrypted media file |
-| GET | `/media/vault/{vault_id}` | List all media in a vault |
-| GET | `/media/{id}/view-url` | Get temporary view URL |
-| GET | `/media/{id}/view` | View media file (streaming, view-only) |
-| DELETE | `/media/{id}` | Delete media (owner or uploader) |
-
-### Health
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/` | Health check |
-| GET | `/health` | Detailed health check |
-
-## 🗺️ Roadmap Status
-
-Based on `roadmap.md`:
-
-- [x] **Phase 0**: Project setup, Auth (email/password)
-- [x] **Phase 1**: Solo Vault (create, list, update, delete) ✅
-- [x] **Phase 2**: Pairing (vault invites, accept/decline, leave) ✅
-- [x] **Phase 1b**: Media upload + view-only display ✅
-- [ ] **Phase 1c**: On-device encryption with AES-GCM
-- [ ] **Phase 2b**: Dedicated Friends system
-- [ ] **Phase 3**: Strict Mode & Push Approvals
-- [ ] **Phase 4**: Screenshot/Recording Detection
-- [ ] **Phase 5**: Key Rotation & Revocation
-
-## 🔐 Security Model
-
-- **Server stores only encrypted blobs** - no plaintext media
-- **AES-GCM encryption** on-device
-- **Pair vaults** use 2-of-2 key splitting (XOR)
-- **Strict mode** requires push approval for every unlock
-
-See `roadmap.md` for full cryptography details.
+See [the staging runbook](../docs/staging-readiness.md) for secrets, Apple configuration, migrations, backups, rollback, DNS/TLS, object storage, and physical iPhone validation.

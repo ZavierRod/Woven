@@ -1,7 +1,6 @@
 """
 Tests for vault endpoints.
 """
-import pytest
 
 
 class TestCreateVault:

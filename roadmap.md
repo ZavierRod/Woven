@@ -1,134 +1,30 @@
-# Woven MVP v1 Roadmap
+# Woven roadmap and implementation status
 
-## The Promise
-**"Secure storage + consented access + audit + rapid lock"** (not "uncopyable")
+Status date: 2026-07-17.
 
-Woven protects against:
-- Server/database breaches (server never has plaintext).
-- Casual snooping (camera roll, shared albums, chat apps).
-- One partner secretly opening the vault (if strict mode is enabled).
+## Implemented
 
-Woven cannot fully prevent copying:
-- Screenshots are detected *after* the fact.
-- Screen recording/mirroring is detected *live* (content hidden).
-- External cameras cannot be stopped.
+- On-device AES-GCM media and metadata encryption for Solo and Pair vault paths.
+- Pair v2 two-member membership, targeted expiring one-time invitations, XOR 2-of-2 shares, Curve25519 envelopes, approval/denial/cancellation/expiry/consumption, revocation, encrypted media, and lifecycle locks.
+- Sign in with Apple client nonce flow and backend signature/JWKS, issuer, audience, expiry, and nonce validation.
+- Short access JWTs, hashed rotating refresh credentials, reuse-family revocation, logout, and device-bound refresh revocation.
+- One active Pair device per account, separate agreement/signing keys, device list/revoke, and canonical Ed25519 signed sensitive requests with freshness and replay rejection.
+- Explicit local/test/staging/production configuration; PostgreSQL and private object storage required remotely.
+- Container, migrations, health/readiness, request limits/timeouts, request IDs, restrictive hosts/CORS, rate limiting, security headers, structured logging, and CI gates.
 
-## Roles and Objects
-- **User**: Account + Device(s).
-- **Friend**: Mutual connection (invite/accept).
-- **Vault**: Solo or Pair, contains encrypted media.
-- **Access Request**: A short-lived "approve unlock" session.
+## Required before a public launch
 
-## Cryptography Model
-### Encryption
-- Media encrypted on-device using **AES-GCM (CryptoKit)**.
-- Server stores only encrypted blobs + non-sensitive metadata.
+- Deploy and exercise an actual staging hostname, PostgreSQL service, private object bucket, TLS ingress, secret manager, monitoring, and automated encrypted backups.
+- Complete the physical two-iPhone checklist in `docs/staging-readiness.md`, including real Apple accounts, reinstall/relaunch, revocation, clock-skew, network interruption, and screen-capture behavior.
+- Configure production Apple identifiers and validate App Store entitlements/provisioning.
+- Select and implement APNs delivery. Polling remains the explicit current transport and APNs is not claimed complete.
+- Add retained security audit events, operational alert thresholds, abuse escalation, key rotation after membership change, and an explicit account/device recovery policy.
+- Obtain independent application-security and cryptographic review and perform a penetration test against the deployed staging service.
 
-### Keys
-- **Solo Vault**: One random `vaultKey` stored in iOS Keychain (optionally wrapped by passcode).
-- **Pair Vault** (Strict Mode):
-    - Create random `vaultKey`.
-    - Split into two shares: `shareA` = `vaultKey` XOR `shareB`.
-    - Store `shareA` in User A's Keychain, `shareB` in User B's Keychain.
-    - **Result**: Neither share alone can decrypt anything. Approval is cryptographically enforced.
+## Product decisions still open
 
-## MVP Feature Set
-### 1. Auth + Device Security
-- **Sign in with Apple**: Simplifies trust.
-- **Local Auth**: Require Face ID / Passcode to open app.
-- **App Switcher**: Blur content.
-
-### 2. Friends + Pairing
-- **Invite Flow**: User A invites -> User B accepts.
-- **Pair Vault Creation**: User B must explicitly accept joining.
-
-### 3. Vault Modes
-- **Normal Mode (Default)**:
-    - Open with local device auth.
-    - Co-approval required only for: New device, after X hours (e.g., 24h), after screenshot detected, or failed unlock attempts.
-- **Strict Mode**:
-    - Every open requires approval from the other person (Push -> Approve).
-
-### 4. Access Request Flow (Push Approval)
-1. User A taps "Open Vault" -> Server creates `AccessRequest` (with ephemeral public key).
-2. Server sends APNs push to User B.
-3. User B authenticates -> Taps Approve.
-4. User B's device encrypts its key share to requester's ephemeral key -> Sends to Server.
-5. User A receives share, reconstructs `vaultKey`, decrypts, and starts short session (5-10 mins).
-
-### 5. Uploading Media (View-Only, No Downloads)
-- Upload only while vault is unlocked.
-- Encrypt on-device with `vaultKey`.
-- Upload encrypted blob.
-- **View-only in app**: Media can only be viewed in-app, cannot be saved/downloaded to device.
-- Temporary signed URLs for viewing (short expiration).
-- No "Save to Photos" or export functionality.
-
-### 6. Screenshot / Recording Response
-- **Screen Recording/Mirroring**: If `UIScreen.isCaptured`, immediately cover content with blur/lock screen.
-- **Screenshot**: On `userDidTakeScreenshotNotification`:
-    1. Lock the vault.
-    2. Notify the other person.
-    3. Require re-approval for next unlock.
-- **Note**: Do NOT auto-delete vault.
-
-## Open Decisions (Security/Policy)
-- **Device Loss**:
-    - *Option A*: Max privacy (no recovery).
-    - *Option B*: Recovery key (offline storage).
-- **Revocation / Breakup**:
-    - Immediate "Revoke access".
-    - "Rotate keys" so future uploads can't be decrypted by revoked device.
-- **Abuse Controls**:
-    - Rate-limit access requests.
-    - Quiet hours / mute requests.
-
-## Backend Responsibilities (FastAPI)
-- Accounts + Friend Invites.
-- Vault Membership (2-person limit).
-- AccessRequests State Machine (pending/approved/denied/expired).
-- Push Notifications (APNs).
-- Encrypted Blob Storage + Signed URLs.
-- Audit Log.
-
-## App Store Safety
-- Market as "private encrypted shared vault".
-- Avoid explicit positioning to comply with guidelines regarding "apps that may include pornography".
-
-## Build Order
-
-### ✅ Phase 0: Foundation (Complete)
-- [x] FastAPI backend setup with PostgreSQL
-- [x] Email/password authentication (signup + login)
-- [x] JWT token-based authorization
-- [x] User model with invite codes
-
-### ✅ Phase 1: Solo Vault (Core Complete)
-- [x] Vault model (solo/pair types, normal/strict modes)
-- [x] Create, list, get, update, delete vaults
-- [x] Vault membership system
-- [x] iOS app: VaultView with create/delete functionality
-- [ ] Media upload + view-only display (in progress)
-- [ ] On-device encryption with AES-GCM
-
-### ✅ Phase 2: Pairing (Complete)
-- [x] Vault invitations via invite code
-- [x] Accept/decline invitations
-- [x] Leave vault functionality
-- [x] Pair vault max 2 members enforcement
-- [x] Dedicated Friends system (mutual connections)
-- [x] Push notifications for invites
-
-### 🔲 Phase 3: Strict Unlock (NEXT)
-- [ ] Access requests + push approvals
-- [ ] 2-of-2 key share relay
-- [ ] APNs integration (Completed in Phase 2, ready for implementation here)
-
-### 🔲 Phase 4: Capture Handling
-- [ ] Recording detection cover (UIScreen.isCaptured)
-- [ ] Screenshot detection lock/notify
-
-### 🔲 Phase 5: Safety
-- [ ] Key rotation
-- [ ] Revoke access
-- [ ] Audit logging
+- Device-loss recovery versus maximum-privacy no-recovery.
+- Post-revocation rekeying and treatment of previously downloaded ciphertext.
+- Notification quiet hours and abuse controls.
+- Retention/deletion policy and user-facing account deletion.
+- Whether Normal mode should cache approval for a bounded interval; Pair v2 currently follows strict two-party unlock semantics.

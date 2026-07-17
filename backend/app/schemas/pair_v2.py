@@ -4,6 +4,7 @@ from pydantic import BaseModel, Field, field_validator
 class DeviceRegistrationV2(BaseModel):
     device_id: str = Field(min_length=8, max_length=64)
     agreement_public_key: str = Field(min_length=40, max_length=128)
+    signing_public_key: str = Field(min_length=40, max_length=128)
 
 
 class InvitationCreateV2(BaseModel):

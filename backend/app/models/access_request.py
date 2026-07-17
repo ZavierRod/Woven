@@ -1,6 +1,5 @@
-from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, Enum
+from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, Enum, Uuid
 from sqlalchemy.orm import relationship
-from sqlalchemy.dialects.postgresql import UUID
 from datetime import datetime
 import enum
 
@@ -16,7 +15,7 @@ class AccessRequest(Base):
     __tablename__ = "access_requests"
 
     id = Column(Integer, primary_key=True, index=True)
-    vault_id = Column(UUID(as_uuid=True), ForeignKey("vaults.id"), nullable=False)
+    vault_id = Column(Uuid(as_uuid=True), ForeignKey("vaults.id"), nullable=False)
     requester_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     approver_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     

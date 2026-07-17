@@ -442,6 +442,7 @@ private actor AuthenticationRecorder {
 private final class InMemoryPairSecrets: PairSecretStore, @unchecked Sendable {
     private let lock = NSLock()
     private var identities: [Int: Data] = [:]
+    private var signingKeys: [Int: Data] = [:]
     private var shares: [String: Data] = [:]
     private var tokens: [String: String] = [:]
 
@@ -450,6 +451,15 @@ private final class InMemoryPairSecrets: PairSecretStore, @unchecked Sendable {
             if let existing = identities[accountID] { return existing }
             let created = cryptography.generateIdentityPrivateKey()
             identities[accountID] = created
+            return created
+        }
+    }
+
+    func signingPrivateKey(accountID: Int, cryptography: PairVaultCryptography) throws -> Data {
+        lock.withLock {
+            if let existing = signingKeys[accountID] { return existing }
+            let created = cryptography.generateSigningPrivateKey()
+            signingKeys[accountID] = created
             return created
         }
     }
@@ -512,10 +522,16 @@ private final class EnforcingPairRelay: PairRelayAPI, @unchecked Sendable {
         )
     }
 
-    func registerDevice(session: PairSession, deviceID: String, publicKey: Data) async throws -> PairDevice {
+    func registerDevice(
+        session: PairSession,
+        deviceID: String,
+        agreementPublicKey: Data,
+        signingPublicKey: Data
+    ) async throws -> PairDevice {
         if let existing = devices[session.userID] {
             guard existing.deviceID == deviceID,
-                  existing.agreementPublicKey == publicKey.base64EncodedString() else {
+                  existing.agreementPublicKey == agreementPublicKey.base64EncodedString(),
+                  existing.signingPublicKey == signingPublicKey.base64EncodedString() else {
                 throw PairVaultError.relay("Device replacement rejected")
             }
             return existing
@@ -523,8 +539,10 @@ private final class EnforcingPairRelay: PairRelayAPI, @unchecked Sendable {
         let record = PairDevice(
             deviceID: deviceID,
             userID: session.userID,
-            agreementPublicKey: publicKey.base64EncodedString(),
-            createdAtMS: nowMS
+            agreementPublicKey: agreementPublicKey.base64EncodedString(),
+            signingPublicKey: signingPublicKey.base64EncodedString(),
+            createdAtMS: nowMS,
+            revoked: false
         )
         devices[session.userID] = record
         return record

@@ -50,6 +50,18 @@ struct PairVaultCryptography: Sendable {
             .publicKey.rawRepresentation
     }
 
+    func generateSigningPrivateKey() -> Data {
+        Curve25519.Signing.PrivateKey().rawRepresentation
+    }
+
+    func signingPublicKey(for privateKey: Data) throws -> Data {
+        try Curve25519.Signing.PrivateKey(rawRepresentation: privateKey).publicKey.rawRepresentation
+    }
+
+    func sign(_ message: Data, privateKey: Data) throws -> Data {
+        try Curve25519.Signing.PrivateKey(rawRepresentation: privateKey).signature(for: message)
+    }
+
     func generateVaultKey() throws -> Data {
         try randomData(count: Self.keyByteCount)
     }

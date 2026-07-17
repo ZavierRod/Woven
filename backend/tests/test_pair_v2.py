@@ -5,10 +5,14 @@ import uuid
 
 from fastapi.testclient import TestClient
 import pytest
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.core.config import Settings
+from app.core.config import settings
+from app.core.device_signatures import PROTOCOL, canonical_request
 from app.db.session import Base
 from app.deps import get_db
 from app.main import app
@@ -58,6 +62,7 @@ def register(client, account: dict, suffix: str, key_byte: bytes) -> dict:
         json={
             "device_id": f"00000000-0000-0000-0000-{suffix:0>12}",
             "agreement_public_key": b64(key_byte * 32),
+            "signing_public_key": b64(key_byte * 32),
         },
     )
     assert response.status_code == 201, response.text
@@ -117,7 +122,11 @@ def test_device_registration_is_idempotent_but_rejects_key_or_device_replacement
     same = client.post(
         "/pair-v2/devices",
         headers=headers(alice["access_token"]),
-        json={"device_id": device["device_id"], "agreement_public_key": b64(b"A" * 32)},
+        json={
+            "device_id": device["device_id"],
+            "agreement_public_key": b64(b"A" * 32),
+            "signing_public_key": b64(b"A" * 32),
+        },
     )
     assert same.status_code == 201
 
@@ -127,9 +136,83 @@ def test_device_registration_is_idempotent_but_rejects_key_or_device_replacement
         json={
             "device_id": "00000000-0000-0000-0000-0000000000a2",
             "agreement_public_key": b64(b"C" * 32),
+            "signing_public_key": b64(b"C" * 32),
         },
     )
     assert replacement.status_code == 409
+
+
+def test_signed_device_request_rejects_tampering_replay_and_wrong_account(client):
+    alice = dev_account(client, "alice")
+    bob = dev_account(client, "bob")
+    private_key = Ed25519PrivateKey.generate()
+    public_key = private_key.public_key().public_bytes(
+        encoding=serialization.Encoding.Raw,
+        format=serialization.PublicFormat.Raw,
+    )
+    device_id = "00000000-0000-0000-0000-0000000000a1"
+    enrolled = client.post(
+        "/pair-v2/devices",
+        headers=headers(alice["access_token"]),
+        json={
+            "device_id": device_id,
+            "agreement_public_key": b64(b"A" * 32),
+            "signing_public_key": b64(public_key),
+        },
+    )
+    assert enrolled.status_code == 201
+
+    timestamp_ms = int(time.time() * 1000)
+    request_id = str(uuid.uuid4())
+    nonce = b64(b"one-time-device-nonce")
+    message = canonical_request(
+        method="GET",
+        path="/pair-v2/devices",
+        request_id=request_id,
+        account_id=alice["user_id"],
+        device_id=device_id,
+        vault_id=None,
+        timestamp_ms=timestamp_ms,
+        nonce=nonce,
+        body=b"",
+    )
+    signed_headers = {
+        **headers(alice["access_token"]),
+        "X-Woven-Protocol": PROTOCOL,
+        "X-Woven-Device-ID": device_id,
+        "X-Woven-Request-ID": request_id,
+        "X-Woven-Timestamp-MS": str(timestamp_ms),
+        "X-Woven-Nonce": nonce,
+        "X-Woven-Signature": b64(private_key.sign(message)),
+    }
+    settings.ENFORCE_DEVICE_SIGNATURES = True
+    try:
+        assert client.get("/pair-v2/devices", headers=signed_headers).status_code == 200
+        assert client.get("/pair-v2/devices", headers=signed_headers).status_code == 409
+
+        tampered = {**signed_headers, "X-Woven-Request-ID": str(uuid.uuid4())}
+        assert client.get("/pair-v2/devices", headers=tampered).status_code == 401
+
+        wrong_account = {**signed_headers, **headers(bob["access_token"]), "X-Woven-Request-ID": str(uuid.uuid4())}
+        assert client.get("/pair-v2/devices", headers=wrong_account).status_code == 401
+    finally:
+        settings.ENFORCE_DEVICE_SIGNATURES = False
+
+
+def test_account_can_list_and_revoke_its_only_pair_device(client):
+    alice = dev_account(client, "alice")
+    device = register(client, alice, "a1", b"A")
+    listed = client.get("/pair-v2/devices", headers=headers(alice["access_token"]))
+    assert listed.status_code == 200
+    assert [item["device_id"] for item in listed.json()] == [device["device_id"]]
+
+    revoked = client.delete(
+        f"/pair-v2/devices/{device['device_id']}",
+        headers=headers(alice["access_token"]),
+    )
+    assert revoked.status_code == 200
+    assert revoked.json()["status"] == "revoked"
+    assert client.get("/pair-v2/devices", headers=headers(alice["access_token"])).status_code == 401
 
 
 def test_invitation_is_targeted_expiring_and_one_use(client):
@@ -419,7 +502,10 @@ def test_encrypted_media_persists_and_plaintext_metadata_is_not_stored(client, d
     # A new SQLAlchemy session sees the same durable relay record.
     db.expire_all()
     stored = db.query(PairMediaV2).filter(PairMediaV2.id == media_id).one()
-    assert stored.encrypted_blob == encrypted_blob
+    assert stored.encrypted_blob is None
+    assert stored.storage_key.startswith("objects/")
+    assert vault_id not in stored.storage_key
+    assert media_id not in stored.storage_key
     assert stored.encrypted_metadata == encrypted_metadata
     assert plaintext_marker not in repr(stored.__dict__)
 

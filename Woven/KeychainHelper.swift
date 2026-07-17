@@ -30,7 +30,7 @@ final class KeychainHelper {
             kSecAttrService as String: service,
             kSecAttrAccount as String: key,
             kSecValueData as String: value,
-            kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlocked
+            kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlockedThisDeviceOnly
         ]
         
         SecItemAdd(query as CFDictionary, nil)
@@ -67,4 +67,3 @@ final class KeychainHelper {
         SecItemDelete(query as CFDictionary)
     }
 }
-

@@ -1,6 +1,5 @@
 import uuid
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Enum as SQLEnum, BigInteger
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Enum as SQLEnum, BigInteger, Uuid
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 import enum
@@ -22,8 +21,8 @@ class VaultMedia(Base):
     """
     __tablename__ = "vault_media"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    vault_id = Column(UUID(as_uuid=True), ForeignKey("vaults.id", ondelete="CASCADE"), nullable=False)
+    id = Column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    vault_id = Column(Uuid(as_uuid=True), ForeignKey("vaults.id", ondelete="CASCADE"), nullable=False)
     uploaded_by_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     
     # Media metadata
@@ -48,5 +47,4 @@ class VaultMedia(Base):
 
     def __repr__(self):
         return f"<VaultMedia(id={self.id}, type={self.media_type}, vault_id={self.vault_id})>"
-
 

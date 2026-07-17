@@ -6,7 +6,7 @@ import time
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
-from app.models.pair_v2 import PairAccessRequestV2, PairMemberV2, PairVaultV2
+from app.models.pair_v2 import PairAccessRequestV2, PairDeviceV2, PairMemberV2, PairVaultV2
 
 
 def now_ms() -> int:
@@ -18,9 +18,10 @@ def token_hash(token: str) -> str:
 
 
 def active_members(db: Session, vault_id: str) -> list[PairMemberV2]:
-    return db.query(PairMemberV2).filter(
+    return db.query(PairMemberV2).join(PairDeviceV2, PairDeviceV2.id == PairMemberV2.device_id).filter(
         PairMemberV2.vault_id == vault_id,
         PairMemberV2.status == "active",
+        PairDeviceV2.revoked.is_(False),
     ).all()
 
 

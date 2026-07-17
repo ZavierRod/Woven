@@ -31,7 +31,7 @@ struct APIError: Codable {
 @MainActor
 final class APIService {
     static let shared = APIService()
-    private let fallbackURL = "http://192.168.1.117:8000" // Fallback default
+    private let fallbackURL = AppConfiguration.configuredBaseURLString
     
     private init() {
         // Start discovery in background

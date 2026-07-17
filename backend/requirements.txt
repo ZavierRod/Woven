@@ -1,29 +1,30 @@
-# Web Framework
-fastapi
-uvicorn[standard]
+# Runtime (Python 3.12+)
+fastapi==0.128.8
+# FastAPI's newest compatible release. Current audit exceptions are documented
+# in docs/staging-readiness.md until upstream publishes a fixed compatible build.
+starlette==0.49.3
+uvicorn[standard]>=0.35.0
+click>=8.3.3
 
-# Database
-sqlalchemy
-psycopg2-binary
-alembic
+sqlalchemy>=2.0.36
+psycopg2-binary>=2.9.10
+alembic>=1.14.0
 
-# Authentication
-pyjwt
-cryptography
-passlib[bcrypt]
+pyjwt>=2.10.1
+cryptography>=44.0.1
+passlib[bcrypt]>=1.7.4
 bcrypt==4.0.1
 
-# Utilities
-requests
-python-dotenv
-pydantic-settings
-email-validator
-python-multipart
+requests>=2.33.0
+urllib3>=2.7.0
+python-dotenv>=1.2.2
+pydantic-settings>=2.7.1
+email-validator>=2.2.0
+python-multipart>=0.0.31
+boto3>=1.36.0
 
-# Testing
-pytest
-pytest-asyncio
-httpx[http2]
+pytest>=9.0.3
+pytest-asyncio>=1.0.0
+httpx[http2]>=0.28.1
 
-# Service Discovery
-zeroconf
+zeroconf>=0.149.16

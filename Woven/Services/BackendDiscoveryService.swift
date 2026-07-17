@@ -9,9 +9,7 @@ class BackendDiscoveryService: ObservableObject {
     @Published var discoveredURL: String?
     @Published var isDiscovering = false
     
-    // Hardcoded backend IP address - update this when on a different network
-    private let backendIP = "192.168.1.117" // Change this to your laptop's current IP address
-    private let backendPort = 8000
+    private let configuredURL = AppConfiguration.configuredBaseURLString
     
     private init() {
         discoverBackend()
@@ -21,7 +19,7 @@ class BackendDiscoveryService: ObservableObject {
     /// Call this early in app lifecycle (e.g., during splash screen) to show permission prompt
     func requestLocalNetworkPermission() {
         Task {
-            let baseURL = "http://\(backendIP):\(backendPort)"
+            let baseURL = configuredURL
             print("🔐 Requesting local network permission via test request to: \(baseURL)")
             
             // Make a quick request to trigger the permission prompt
@@ -49,8 +47,7 @@ class BackendDiscoveryService: ObservableObject {
         // Try mDNS discovery first
         discoverViaMDNS()
         
-        // Also try the hardcoded IP
-        tryHardcodedIP()
+        tryConfiguredURL()
     }
     
     private func discoverViaMDNS() {
@@ -60,11 +57,11 @@ class BackendDiscoveryService: ObservableObject {
         // and works reliably for local development
     }
     
-    /// Try the hardcoded IP address
-    private func tryHardcodedIP() {
+    /// Try the explicitly configured local URL; never scan or guess addresses.
+    private func tryConfiguredURL() {
         Task {
-            let baseURL = "http://\(backendIP):\(backendPort)"
-            print("🔍 Trying hardcoded backend URL: \(baseURL)")
+            let baseURL = configuredURL
+            print("🔍 Trying configured backend URL: \(baseURL)")
             
             if await testConnection(to: baseURL) {
                 await MainActor.run {
@@ -105,4 +102,3 @@ class BackendDiscoveryService: ObservableObject {
         return false
     }
 }
-

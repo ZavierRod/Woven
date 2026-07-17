@@ -63,6 +63,8 @@ final class PairVaultStore {
         return vault.members.contains { $0.userID != session.userID && $0.status == "active" }
     }
 
+    var requiresPartnerInviteCode: Bool { account == nil }
+
     @ObservationIgnored private let dependencies: PairVaultDependencies
     @ObservationIgnored private var session: PairSession?
     @ObservationIgnored private var device: PairDevice?
@@ -105,27 +107,7 @@ final class PairVaultStore {
 
         do {
             let newSession = try await dependencies.api.developmentSession(selectedAccount)
-            let privateKey = try dependencies.secrets.identityPrivateKey(
-                accountID: newSession.userID,
-                cryptography: dependencies.cryptography
-            )
-            let publicKey = try dependencies.cryptography.publicKey(for: privateKey)
-            let deviceID = "ios-" + dependencies.cryptography.sha256Hex(publicKey.base64EncodedString()).prefix(32)
-            let expectedDeviceID = String(deviceID)
-            let registeredDevice = try await dependencies.api.registerDevice(
-                session: newSession,
-                deviceID: expectedDeviceID,
-                publicKey: publicKey
-            )
-            guard registeredDevice.deviceID == expectedDeviceID,
-                  registeredDevice.userID == newSession.userID,
-                  registeredDevice.agreementPublicKey == publicKey.base64EncodedString() else {
-                throw PairVaultError.contextMismatch
-            }
-            session = newSession
-            device = registeredDevice
-            try await refresh()
-            startPolling()
+            try await enroll(session: newSession)
         } catch {
             clearSession()
             account = selectedAccount
@@ -134,9 +116,61 @@ final class PairVaultStore {
         }
     }
 
-    func createVault(named rawName: String) async {
+    func signIn(session newSession: PairSession) async {
+        guard !isWorking else { return }
+        logout()
+        isWorking = true
+        phase = .loading
+        account = nil
+        defer { isWorking = false }
+        do {
+            try await enroll(session: newSession)
+        } catch {
+            clearSession()
+            phase = .failed(error.localizedDescription)
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    private func enroll(session newSession: PairSession) async throws {
+        let privateKey = try dependencies.secrets.identityPrivateKey(
+            accountID: newSession.userID,
+            cryptography: dependencies.cryptography
+        )
+        let publicKey = try dependencies.cryptography.publicKey(for: privateKey)
+        let signingPrivateKey = try dependencies.secrets.signingPrivateKey(
+            accountID: newSession.userID,
+            cryptography: dependencies.cryptography
+        )
+        let signingPublicKey = try dependencies.cryptography.signingPublicKey(for: signingPrivateKey)
+        let deviceID = "ios-" + dependencies.cryptography.sha256Hex(publicKey.base64EncodedString()).prefix(32)
+        let expectedDeviceID = String(deviceID)
+        let registeredDevice = try await dependencies.api.registerDevice(
+            session: newSession,
+            deviceID: expectedDeviceID,
+            agreementPublicKey: publicKey,
+            signingPublicKey: signingPublicKey
+        )
+        guard registeredDevice.deviceID == expectedDeviceID,
+              registeredDevice.userID == newSession.userID,
+              registeredDevice.agreementPublicKey == publicKey.base64EncodedString(),
+              registeredDevice.signingPublicKey == signingPublicKey.base64EncodedString(),
+              !registeredDevice.revoked else {
+            throw PairVaultError.contextMismatch
+        }
+        dependencies.api.configureDeviceSigning(
+            accountID: newSession.userID,
+            deviceID: expectedDeviceID,
+            privateKey: signingPrivateKey
+        )
+        session = newSession
+        device = registeredDevice
+        try await refresh()
+        startPolling()
+    }
+
+    func createVault(named rawName: String, partnerInviteCode: String? = nil) async {
         guard !isWorking,
-              let account,
               let session,
               let device,
               case .ready = phase else { return }
@@ -152,9 +186,20 @@ final class PairVaultStore {
         var shareWasSaved = false
 
         do {
-            let partnerSession = try await dependencies.api.developmentSession(account.partner)
-            let partnerDevice = try await dependencies.api.device(for: partnerSession.userID, session: session)
-            guard partnerDevice.userID == partnerSession.userID,
+            let targetUserID: Int
+            if let account {
+                let partnerSession = try await dependencies.api.developmentSession(account.partner)
+                targetUserID = partnerSession.userID
+            } else {
+                let code = (partnerInviteCode ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !code.isEmpty else {
+                    throw PairVaultError.relay("Enter your partner’s invite code.")
+                }
+                let partnerAccount = try await dependencies.api.account(inviteCode: code, session: session)
+                targetUserID = partnerAccount.userID
+            }
+            let partnerDevice = try await dependencies.api.device(for: targetUserID, session: session)
+            guard partnerDevice.userID == targetUserID,
                   let partnerPublicKey = Data(base64Encoded: partnerDevice.agreementPublicKey) else {
                 throw PairVaultError.malformedData
             }

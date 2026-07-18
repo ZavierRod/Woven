@@ -14,7 +14,8 @@ Configure secrets only in the selected hosting platform’s secret manager or Xc
 | `REFRESH_TOKEN_PEPPER` | Generated independently in secret manager | Yes | Provider secret manager | At least 32 random characters and differs from `SECRET_KEY`; refresh rotation passes | Yes, unrelated disposable value |
 | `APPLE_CLIENT_ID` | Apple Developer identifier configuration | No | Backend environment | Exact `aud` accepted; wrong audience rejected | Test audience for automated tests |
 | `APPLE_ISSUER`, `APPLE_JWKS_URL` | Fixed Apple endpoints | No | Leave repository defaults unchanged | Remote startup rejects anything except Apple's official HTTPS issuer/JWKS endpoint | Same official endpoints |
-| `TRUSTED_HOSTS` | Staging DNS decision | No | Backend environment | Exact public API hostname included; wildcard and mismatched host fail startup/request | Empty locally |
+| `TRUSTED_HOSTS` | Staging DNS decision | No | Backend environment | Exact public API hostname included; add `healthcheck.railway.app` on Railway; wildcard and mismatched host fail | Empty locally |
+| `PORT` | Hosting provider | No | Backend environment | `8000` on Railway to match the container listener and healthcheck target | Not required locally |
 | `CORS_ORIGINS` | Browser-client owner, if any | No | Backend environment | Empty for native-only staging, otherwise exact HTTPS origins; wildcard fails startup | Empty locally |
 | `OBJECT_STORAGE_ENDPOINT` | Private object-storage provider | No | Backend environment | Absolute HTTPS endpoint; storage smoke succeeds | Local filesystem adapter |
 | `OBJECT_STORAGE_BUCKET` | Object-storage administrator | Sensitive metadata | Backend environment | Bucket exists, public access is blocked, direct anonymous GET/list fails | Local directory |

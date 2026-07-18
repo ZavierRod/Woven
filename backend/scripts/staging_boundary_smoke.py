@@ -39,7 +39,7 @@ def main() -> None:
         require(dev_session.status_code == 404, "development Pair authentication is enabled")
         password_signup = client.post(
             "/auth/signup",
-            json={"username": "boundary", "email": "boundary@example.invalid", "password": "not-a-real-secret"},
+            json={"username": "boundary", "email": "boundary@example.com", "password": "not-a-real-secret"},
         )
         require(password_signup.status_code == 404, "development password authentication is enabled")
 

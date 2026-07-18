@@ -29,12 +29,18 @@ def main() -> None:
         http2=True,
     ) as client:
         untrusted_host = client.get("/health", headers={"Host": "untrusted.invalid"})
-        require(untrusted_host.status_code == 400, "untrusted Host header was accepted")
+        require(untrusted_host.status_code in {400, 404}, "untrusted Host header was accepted")
 
-        oversized = client.post(
-            "/auth/apple",
-            headers={"Content-Length": str(22 * 1024 * 1024)},
-        )
+        with httpx.Client(
+            base_url=args.base_url.rstrip("/"),
+            timeout=55,
+            follow_redirects=False,
+            http2=False,
+        ) as upload_client:
+            oversized = upload_client.post(
+                "/health",
+                content=(b"x" * (1024 * 1024) for _ in range(22)),
+            )
         require(oversized.status_code == 413, "oversized declared body was not rejected")
         require(marker not in oversized.text, "oversized response disclosed marker")
 

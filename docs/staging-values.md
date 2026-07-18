@@ -19,6 +19,8 @@ Configure secrets only in the selected hosting platform’s secret manager or Xc
 | `OBJECT_STORAGE_ENDPOINT` | Private object-storage provider | No | Backend environment | Absolute HTTPS endpoint; storage smoke succeeds | Local filesystem adapter |
 | `OBJECT_STORAGE_BUCKET` | Object-storage administrator | Sensitive metadata | Backend environment | Bucket exists, public access is blocked, direct anonymous GET/list fails | Local directory |
 | `OBJECT_STORAGE_REGION` | Object-storage provider | No | Backend environment | SDK requests reach the selected region | Empty/provider-specific |
+| `OBJECT_STORAGE_ADDRESSING_STYLE` | Object-storage provider | No | Backend environment | `virtual` for current Railway buckets; provider-specific otherwise | `auto` |
+| `OBJECT_STORAGE_SERVER_SIDE_ENCRYPTION` | Object-storage provider | No | Backend environment | Leave unset when the provider rejects S3 SSE request headers; set `AES256` for supporting providers | Empty |
 | `OBJECT_STORAGE_ACCESS_KEY` | Bucket-scoped service identity | Yes | Provider secret manager | Can get/put/delete only Woven staging objects; cannot change bucket policy | Disposable/local none |
 | `OBJECT_STORAGE_SECRET_KEY` | Bucket-scoped service identity | Yes | Provider secret manager | Same least-privilege verification; never logged | Disposable/local none |
 | `APP_ENV` | Fixed policy value | No | Backend environment | Exactly `staging` | `local` or `test` |

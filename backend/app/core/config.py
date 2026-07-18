@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from enum import Enum
-from typing import Optional
+from typing import Literal, Optional
 from urllib.parse import urlparse
 
 from pydantic import Field, model_validator
@@ -57,6 +57,8 @@ class Settings(BaseSettings):
     OBJECT_STORAGE_REGION: str = ""
     OBJECT_STORAGE_ACCESS_KEY: str = ""
     OBJECT_STORAGE_SECRET_KEY: str = ""
+    OBJECT_STORAGE_ADDRESSING_STYLE: Literal["auto", "virtual", "path"] = "auto"
+    OBJECT_STORAGE_SERVER_SIDE_ENCRYPTION: str = ""
     MEDIA_UPLOAD_URL_EXPIRY: int = Field(default=300, ge=30, le=900)
     MEDIA_VIEW_URL_EXPIRY: int = Field(default=300, ge=30, le=900)
 

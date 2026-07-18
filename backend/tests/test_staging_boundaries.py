@@ -1,4 +1,5 @@
 import uuid
+from types import SimpleNamespace
 
 import pytest
 
@@ -119,3 +120,35 @@ def test_local_ciphertext_storage_uses_opaque_keys_and_blocks_traversal(tmp_path
     assert storage.get_file(key) == b"ciphertext"
     with pytest.raises(ValueError):
         storage.get_file("../../outside")
+
+
+def test_object_storage_supports_virtual_addressing_without_sse(monkeypatch):
+    from app.core.config import settings
+    from app.services.storage import ObjectCiphertextStorage
+
+    calls = []
+    fake_client = SimpleNamespace(put_object=lambda **kwargs: calls.append(kwargs))
+
+    def fake_client_factory(*_args, **kwargs):
+        calls.append(kwargs)
+        return fake_client
+
+    fake_boto3 = SimpleNamespace(client=fake_client_factory)
+    monkeypatch.setitem(__import__("sys").modules, "boto3", fake_boto3)
+    monkeypatch.setattr(settings, "OBJECT_STORAGE_BUCKET", "woven-private")
+    monkeypatch.setattr(settings, "OBJECT_STORAGE_ENDPOINT", "https://storage.railway.app")
+    monkeypatch.setattr(settings, "OBJECT_STORAGE_REGION", "auto")
+    monkeypatch.setattr(settings, "OBJECT_STORAGE_ACCESS_KEY", "access")
+    monkeypatch.setattr(settings, "OBJECT_STORAGE_SECRET_KEY", "secret")
+    monkeypatch.setattr(settings, "OBJECT_STORAGE_ADDRESSING_STYLE", "virtual")
+    monkeypatch.setattr(settings, "OBJECT_STORAGE_SERVER_SIDE_ENCRYPTION", "")
+
+    storage = ObjectCiphertextStorage()
+    assert calls[0]["config"].s3["addressing_style"] == "virtual"
+    storage.save_file("objects/opaque", b"ciphertext")
+    assert calls[1] == {
+        "Bucket": "woven-private",
+        "Key": "objects/opaque",
+        "Body": b"ciphertext",
+        "ContentType": "application/octet-stream",
+    }

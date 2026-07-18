@@ -65,6 +65,7 @@ class ObjectCiphertextStorage(CiphertextStorage):
     def __init__(self):
         try:
             import boto3
+            from botocore.config import Config
         except ImportError as error:
             raise RuntimeError("boto3 is required for object storage") from error
         self.bucket = settings.OBJECT_STORAGE_BUCKET
@@ -74,16 +75,19 @@ class ObjectCiphertextStorage(CiphertextStorage):
             region_name=settings.OBJECT_STORAGE_REGION or None,
             aws_access_key_id=settings.OBJECT_STORAGE_ACCESS_KEY,
             aws_secret_access_key=settings.OBJECT_STORAGE_SECRET_KEY,
+            config=Config(s3={"addressing_style": settings.OBJECT_STORAGE_ADDRESSING_STYLE}),
         )
 
     def save_file(self, storage_key: str, file_content: bytes) -> None:
-        self.client.put_object(
-            Bucket=self.bucket,
-            Key=storage_key,
-            Body=file_content,
-            ContentType="application/octet-stream",
-            ServerSideEncryption="AES256",
-        )
+        request = {
+            "Bucket": self.bucket,
+            "Key": storage_key,
+            "Body": file_content,
+            "ContentType": "application/octet-stream",
+        }
+        if settings.OBJECT_STORAGE_SERVER_SIDE_ENCRYPTION:
+            request["ServerSideEncryption"] = settings.OBJECT_STORAGE_SERVER_SIDE_ENCRYPTION
+        self.client.put_object(**request)
 
     def get_file(self, storage_key: str) -> Optional[bytes]:
         try:

@@ -27,7 +27,7 @@ No credential, secret, token, connection string, private object name, or user da
 - PostgreSQL has no TCP proxy, public domain, or custom domain. The API references its private `DATABASE_URL`.
 - The bucket is in `sjc`, is private by Railway design, and uses Railway reference variables for credentials.
 - The bucket adapter uses virtual-hosted addressing and omits the unsupported S3 server-side-encryption request header. Stored Woven payloads remain application ciphertext.
-- A workspace compute hard limit still requires an authenticated Railway dashboard session. Per-service limits and API sleep are configured, but the dashboard hard limit must be set to the owner's $5 boundary.
+- Railway does not permit the requested $5 workspace hard limit: its API/CLI requires a hard limit of at least $10 (or $0), and email alerts also start at $5. No higher limit was configured because it would exceed the authorized boundary. Per-service limits and API sleep remain configured.
 
 ## Deployment evidence
 
@@ -53,7 +53,7 @@ No credential, secret, token, connection string, private object name, or user da
 
 ## Explicitly deferred
 
-- In Railway: set the workspace Compute Usage hard limit to $5 from an authenticated dashboard session and monitor actual usage. This control is not exposed by the authenticated CLI.
+- In Railway: no action is required unless the owner chooses a different cost policy. Railway rejected the authorized $5 hard ceiling because its minimum is $10; changing that boundary requires explicit new authorization. Monitor actual usage and stop the staging services before $5 if necessary.
 - In Apple Developer: register the unique staging App ID/audience, enable Sign in with Apple, configure the team/profile/certificate, and inject the Railway HTTPS base URL into the Staging archive.
 - On physical hardware: install the exact Staging build on two iPhones and complete every item in `two-iphone-staging-results.md`.
 - APNs delivery/signing, backup restore drills, recovery, post-revocation content-key rotation, formal security review, incident-response ownership, production infrastructure, and public launch remain out of scope.

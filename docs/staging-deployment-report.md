@@ -10,6 +10,7 @@ Completed locally on 2026-07-17 before handoff:
 - Backend: 114 tests passed; Ruff passed; Bandit passed; `pip-audit` reported no known vulnerabilities with no ignored IDs.
 - PostgreSQL 16: upgrade to head, downgrade one revision, re-upgrade, `alembic check`, and `alembic current` all passed at `d7a4c10b8e21`.
 - iOS: the Release-equivalent `Woven-Staging` Simulator build passed, and its expanded plist contained the injected HTTPS URL, staging environment, distinct bundle/display name, and no local-network or ATS exception keys.
+- Xcode Release analysis passed on the current source with code signing disabled for the generic Simulator destination.
 - iOS regression: eight unit/state tests and six UI/launch executions passed on the iPhone 17 Pro Simulator.
 
 These results validate the deployable artifacts and local boundaries only. They are not evidence for public TLS, provider networking, managed PostgreSQL, private object storage, Apple signing, or physical-device behavior.
@@ -25,6 +26,8 @@ These results validate the deployable artifacts and local boundaries only. They 
 | Backend Git commit / image digest | Pending deployment |
 | Alembic revision | Pending deployment |
 | iOS Staging commit / build number | Pending archive |
+
+Provider discovery note: a Railway CLI is installed on the verification Mac, but its account check returns `Unauthorized`; the repository has no Railway project linkage or Railway deployment manifest. This is not a provider selection. Do not run interactive login or create resources until the owner selects a provider, region, and cost boundary.
 
 ## Deployment evidence
 

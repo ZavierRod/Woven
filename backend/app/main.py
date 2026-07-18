@@ -13,10 +13,13 @@ from collections import defaultdict, deque
 from typing import Deque, Dict
 
 from fastapi import FastAPI
+from fastapi.exception_handlers import request_validation_exception_handler
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy import text as sql_text
 from starlette.middleware.trustedhost import TrustedHostMiddleware
+from starlette.requests import Request
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from app.core.config import settings
@@ -36,15 +39,17 @@ from app.services.mdns import mdns_service
 
 class JSONFormatter(logging.Formatter):
     def format(self, record: logging.LogRecord) -> str:
-        return json.dumps(
-            {
-                "timestamp": int(time.time()),
-                "level": record.levelname,
-                "logger": record.name,
-                "message": record.getMessage(),
-            },
-            separators=(",", ":"),
-        )
+        event = {
+            "timestamp": int(time.time()),
+            "level": record.levelname,
+            "logger": record.name,
+            "message": record.getMessage(),
+        }
+        for field in ("request_id", "method", "route", "status", "duration_ms"):
+            value = getattr(record, field, None)
+            if value is not None:
+                event[field] = value
+        return json.dumps(event, separators=(",", ":"))
 
 
 handler = logging.StreamHandler()
@@ -59,6 +64,13 @@ app = FastAPI(
     redoc_url=None if settings.is_remote else "/redoc",
     openapi_url=None if settings.is_remote else "/openapi.json",
 )
+
+
+@app.exception_handler(RequestValidationError)
+async def safe_validation_error(request: Request, error: RequestValidationError):
+    if settings.is_remote:
+        return JSONResponse(status_code=422, content={"detail": "Invalid request"})
+    return await request_validation_exception_handler(request, error)
 
 
 class RequestBoundaryMiddleware:
@@ -84,8 +96,36 @@ class RequestBoundaryMiddleware:
             return
 
         headers = {key.lower(): value for key, value in scope.get("headers", [])}
+        started_at = time.monotonic()
+        response_status = 500
         supplied_request_id = headers.get(b"x-request-id", b"").decode("ascii", errors="ignore")
         request_id = supplied_request_id if self._safe_request_id.fullmatch(supplied_request_id) else str(uuid.uuid4())
+
+        def log_boundary(status: int) -> None:
+            logger.info(
+                "request_boundary",
+                extra={
+                    "request_id": request_id,
+                    "method": scope.get("method", "UNKNOWN"),
+                    "route": "boundary",
+                    "status": status,
+                    "duration_ms": round((time.monotonic() - started_at) * 1000, 2),
+                },
+            )
+
+        def boundary_headers(additional: dict[str, str] | None = None) -> dict[str, str]:
+            values = {
+                "X-Request-ID": request_id,
+                "X-Content-Type-Options": "nosniff",
+                "X-Frame-Options": "DENY",
+                "Referrer-Policy": "no-referrer",
+                "Cache-Control": "no-store",
+            }
+            if settings.is_remote:
+                values["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+            if additional:
+                values.update(additional)
+            return values
 
         limit = self._rate_limit(scope)
         if limit:
@@ -106,10 +146,11 @@ class RequestBoundaryMiddleware:
             while bucket and bucket[0] <= now - 60:
                 bucket.popleft()
             if len(bucket) >= limit:
+                log_boundary(429)
                 await JSONResponse(
                     status_code=429,
                     content={"detail": "Rate limit exceeded"},
-                    headers={"Retry-After": "60", "X-Request-ID": request_id},
+                    headers=boundary_headers({"Retry-After": "60"}),
                 )(scope, receive, send)
                 return
             bucket.append(now)
@@ -121,14 +162,20 @@ class RequestBoundaryMiddleware:
             except ValueError:
                 declared_length = -1
             if declared_length < 0:
-                await JSONResponse(status_code=400, content={"detail": "Invalid Content-Length header"})(
-                    scope, receive, send
-                )
+                log_boundary(400)
+                await JSONResponse(
+                    status_code=400,
+                    content={"detail": "Invalid Content-Length header"},
+                    headers=boundary_headers(),
+                )(scope, receive, send)
                 return
             if declared_length > settings.MAX_REQUEST_BYTES:
-                await JSONResponse(status_code=413, content={"detail": "Request exceeds the size limit"})(
-                    scope, receive, send
-                )
+                log_boundary(413)
+                await JSONResponse(
+                    status_code=413,
+                    content={"detail": "Request exceeds the size limit"},
+                    headers=boundary_headers(),
+                )(scope, receive, send)
                 return
 
         messages: list[Message] = []
@@ -142,9 +189,12 @@ class RequestBoundaryMiddleware:
                 continue
             received_bytes += len(message.get("body", b""))
             if received_bytes > settings.MAX_REQUEST_BYTES:
-                await JSONResponse(status_code=413, content={"detail": "Request exceeds the size limit"})(
-                    scope, receive, send
-                )
+                log_boundary(413)
+                await JSONResponse(
+                    status_code=413,
+                    content={"detail": "Request exceeds the size limit"},
+                    headers=boundary_headers(),
+                )(scope, receive, send)
                 return
             if not message.get("more_body", False):
                 break
@@ -161,7 +211,9 @@ class RequestBoundaryMiddleware:
             return {"type": "http.disconnect"}
 
         async def secured_send(message: Message) -> None:
+            nonlocal response_status
             if message["type"] == "http.response.start":
+                response_status = int(message["status"])
                 response_headers = list(message.get("headers", []))
                 response_headers.extend(
                     [
@@ -178,6 +230,17 @@ class RequestBoundaryMiddleware:
             await send(message)
             if message["type"] == "http.response.body" and not message.get("more_body", False):
                 response_complete.set()
+                route = scope.get("route")
+                logger.info(
+                    "request_completed",
+                    extra={
+                        "request_id": request_id,
+                        "method": scope.get("method", "UNKNOWN"),
+                        "route": getattr(route, "path", "unmatched"),
+                        "status": response_status,
+                        "duration_ms": round((time.monotonic() - started_at) * 1000, 2),
+                    },
+                )
 
         try:
             await asyncio.wait_for(
@@ -185,10 +248,11 @@ class RequestBoundaryMiddleware:
                 timeout=settings.REQUEST_TIMEOUT_SECONDS,
             )
         except asyncio.TimeoutError:
+            log_boundary(504)
             await JSONResponse(
                 status_code=504,
                 content={"detail": "Request timed out"},
-                headers={"X-Request-ID": request_id},
+                headers=boundary_headers(),
             )(scope, replay_receive, send)
 
 
@@ -201,7 +265,17 @@ if settings.cors_origins:
         allow_origins=settings.cors_origins,
         allow_credentials=True,
         allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-        allow_headers=["Authorization", "Content-Type", "X-Request-ID", "X-Woven-*"],
+        allow_headers=[
+            "Authorization",
+            "Content-Type",
+            "X-Request-ID",
+            "X-Woven-Protocol",
+            "X-Woven-Device-ID",
+            "X-Woven-Request-ID",
+            "X-Woven-Timestamp-MS",
+            "X-Woven-Nonce",
+            "X-Woven-Signature",
+        ],
     )
 
 app.include_router(auth_router)

@@ -113,6 +113,8 @@ class Settings(BaseSettings):
             errors.append("SECRET_KEY must contain at least 32 characters")
         if len(self.REFRESH_TOKEN_PEPPER) < 32:
             errors.append("REFRESH_TOKEN_PEPPER must contain at least 32 characters")
+        if self.SECRET_KEY and self.SECRET_KEY == self.REFRESH_TOKEN_PEPPER:
+            errors.append("SECRET_KEY and REFRESH_TOKEN_PEPPER must be independent values")
         if not self.DATABASE_URL:
             errors.append("DATABASE_URL is required")
 
@@ -127,10 +129,18 @@ class Settings(BaseSettings):
                 errors.append("DATABASE_URL must use PostgreSQL in staging and production")
             if not self.APPLE_CLIENT_ID:
                 errors.append("APPLE_CLIENT_ID is required in staging and production")
+            if self.APPLE_ISSUER != "https://appleid.apple.com":
+                errors.append("APPLE_ISSUER must use Apple's official HTTPS issuer")
+            if self.APPLE_JWKS_URL != "https://appleid.apple.com/auth/keys":
+                errors.append("APPLE_JWKS_URL must use Apple's official HTTPS key endpoint")
             if not self.ENFORCE_DEVICE_SIGNATURES:
                 errors.append("ENFORCE_DEVICE_SIGNATURES must be true in staging and production")
             if not self.trusted_hosts:
                 errors.append("TRUSTED_HOSTS is required in staging and production")
+            if "*" in self.trusted_hosts:
+                errors.append("TRUSTED_HOSTS cannot contain '*' in staging or production")
+            if public_url.hostname and public_url.hostname not in self.trusted_hosts:
+                errors.append("TRUSTED_HOSTS must include the PUBLIC_BASE_URL hostname")
             if "*" in self.cors_origins:
                 errors.append("CORS_ORIGINS cannot contain '*' in staging or production")
             if self.STORAGE_BACKEND != StorageBackend.OBJECT:
@@ -143,6 +153,9 @@ class Settings(BaseSettings):
             }.items():
                 if not value:
                     errors.append(f"{name} is required for remote object storage")
+            object_url = urlparse(self.OBJECT_STORAGE_ENDPOINT)
+            if object_url.scheme != "https" or not object_url.netloc:
+                errors.append("OBJECT_STORAGE_ENDPOINT must be an absolute HTTPS URL")
 
         if self.is_local:
             if public_url.scheme not in {"http", "https"} or not public_url.netloc:

@@ -2,6 +2,8 @@
 
 This is the operator checklist for a real staging environment. It does not select or create a hosting provider. Commands are examples; adapt service names to the chosen platform without weakening the boundaries below.
 
+Before provisioning, complete the exact [human-controlled value inventory](staging-values.md). Record physical-device evidence in the [two-iPhone result sheet](two-iphone-staging-results.md); do not substitute Simulator results for physical observations.
+
 ## Required services and trust boundaries
 
 1. A dedicated staging DNS name with valid publicly trusted TLS, such as `api.staging.example.com`.
@@ -29,10 +31,12 @@ Validate before rollout:
 ```bash
 docker compose --env-file .env.staging config
 docker compose --env-file .env.staging build
+docker compose --env-file .env.staging run --rm api python scripts/validate_staging_config.py
 docker compose --env-file .env.staging run --rm api alembic upgrade head
 docker compose --env-file .env.staging up -d
 curl --fail https://api.staging.example.com/health
 curl --fail https://api.staging.example.com/ready
+python backend/scripts/staging_boundary_smoke.py https://api.staging.example.com
 ```
 
 Do not publish port 8000 directly. Terminate TLS at a maintained ingress/load balancer, forward only to the private API network, preserve `X-Forwarded-Proto`, cap request sizes there as well, and set idle/request timeouts no larger than the application boundary.
@@ -62,13 +66,26 @@ Object storage needs versioning or provider snapshots and lifecycle rules consis
 
 ## Build a staging iOS artifact
 
-Create a staging build configuration or injected Release setting with:
+The shared `Woven-Staging` scheme uses the distinct `Staging` build configuration, `Info-Staging.plist`, and `Woven/Staging.entitlements`. It requires three injected build settings:
 
-- `WOVEN_ENVIRONMENT=staging`
-- `WOVEN_API_BASE_URL=https://api.staging.example.com`
-- the staging bundle identifier/provisioning profile with Sign in with Apple
+- `WOVEN_STAGING_API_BASE_URL` — exact deployed HTTPS origin
+- `WOVEN_STAGING_BUNDLE_IDENTIFIER` — registered staging App ID
+- `WOVEN_STAGING_DEVELOPMENT_TEAM` — Apple Developer team identifier
 
-Release code rejects local/test environments, HTTP, localhost, unresolved build variables, and empty URLs. Do not add ATS exceptions for the staging host. Local-network/Bonjour declarations are for Debug development and should be removed from a distribution-specific plist if the product no longer needs them.
+Archive only after the backend smoke checks pass:
+
+```bash
+xcodebuild archive \
+  -project Woven.xcodeproj \
+  -scheme Woven-Staging \
+  -configuration Staging \
+  -archivePath /path/outside-repository/Woven-Staging.xcarchive \
+  WOVEN_STAGING_API_BASE_URL=https://api.staging.example.com \
+  WOVEN_STAGING_BUNDLE_IDENTIFIER=com.example.Woven.staging \
+  WOVEN_STAGING_DEVELOPMENT_TEAM=YOUR_TEAM_ID
+```
+
+Staging code rejects local/test environments, HTTP, localhost, unresolved build variables, and empty URLs. The Staging plist has no ATS exception or local-network/Bonjour declaration. The UI displays a persistent noninteractive `STAGING` badge, and Release-only compilation removes the development selector.
 
 ## Two-iPhone verification
 
@@ -92,6 +109,6 @@ Use two physical iPhones with different real Apple IDs and Face ID/passcodes ena
 
 Staging is ready for wider internal testing only when CI is green, migrations and restore have been exercised, HTTPS/headers/rate limits are observed at the public edge, object storage is private, Apple login and refresh rotation work on two physical phones, signed-device adversarial cases fail closed, and the full two-user workflow above has recorded evidence. APNs, recovery, post-revocation key rotation, formal security review, and production operational ownership remain explicit blockers for a public launch.
 
-## Dependency-audit exception
+## Dependency audit
 
-As of 2026-07-17, `pip-audit` reports five 2026 Starlette advisories whose stated fixes are Starlette 1.0.1–1.3.1, while the newest package published to the configured index is 0.49.3 and the newest FastAPI line is 0.128.8. CI ignores only `PYSEC-2026-161`, `PYSEC-2026-249`, `PYSEC-2026-248`, `PYSEC-2026-2281`, and `PYSEC-2026-2280`; every other advisory remains blocking. Recheck this exception on every dependency update and remove it as soon as a compatible fixed release exists. Compensating boundaries are authenticated native clients, strict request-size/time limits, no remote documentation/static-file surface, and a maintained TLS ingress, but these do not constitute a vendor fix.
+The former five-advisory Starlette exception was removed on 2026-07-17 when compatible fixed releases became available. Woven now pins FastAPI 0.139.2 and Starlette 1.3.1, and CI runs `pip-audit` with no ignored vulnerability IDs. See [the advisory review](starlette-advisory-review.md) for the decision and expiry history.

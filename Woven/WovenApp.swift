@@ -34,11 +34,13 @@ private struct DevelopmentRootView: View {
 }
 
 private struct ProductionRootView: View {
+    private let configuration: AppConfiguration
     @State private var authentication: ProductionAuthenticationStore
     @State private var soloVaultStore = SoloVaultStore()
     @State private var pairVaultStore = PairVaultStore()
 
     init(configuration: AppConfiguration) {
+        self.configuration = configuration
         _authentication = State(initialValue: ProductionAuthenticationStore(configuration: configuration))
     }
 
@@ -57,6 +59,20 @@ private struct ProductionRootView: View {
             } else {
                 ProductionSignInView(store: authentication)
                     .task { await authentication.restore() }
+            }
+        }
+        .overlay(alignment: .top) {
+            if configuration.environment == .staging {
+                Text("STAGING")
+                    .font(.caption2.bold())
+                    .tracking(1.2)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .foregroundStyle(.black)
+                    .background(.yellow, in: Capsule())
+                    .padding(.top, 8)
+                    .accessibilityLabel("Woven staging build")
+                    .allowsHitTesting(false)
             }
         }
     }

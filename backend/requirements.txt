@@ -1,8 +1,6 @@
 # Runtime (Python 3.12+)
-fastapi==0.128.8
-# FastAPI's newest compatible release. Current audit exceptions are documented
-# in docs/staging-readiness.md until upstream publishes a fixed compatible build.
-starlette==0.49.3
+fastapi==0.139.2
+starlette==1.3.1
 uvicorn[standard]>=0.35.0
 click>=8.3.3
 

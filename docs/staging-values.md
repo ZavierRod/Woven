@@ -45,15 +45,8 @@ Configure secrets only in the selected hosting platform’s secret manager or Xc
 | Staging development/distribution certificate and provisioning profile | Apple Developer/Xcode managed signing | Sensitive credential material | Apple portal, Xcode account, or CI signing vault | Archive/export/install on both registered iPhones | Simulator uses ad-hoc signing |
 | iPhone A/B device registration, if using development/ad hoc install | Apple Developer account and physical devices | Device identifier is sensitive | Apple portal/Xcode | Both devices install the exact staging commit | No |
 
-The repository deliberately contains no staging API URL, Apple credential, private key, provisioning profile, database password, or object-storage credential.
+The public staging API hostname is recorded only in the sanitized deployment documentation. The repository contains no Apple credential, private key, provisioning profile, database password, application secret, or object-storage credential.
 
-## Provider decision: minimum capabilities
+## Selected staging provider
 
-No provider is selected in this repository. The human decision needs only choose a platform that supplies:
-
-1. A private container service with secret injection, read-only filesystem support, outbound HTTPS, health checks, redacted logs, and a separate one-off migration job.
-2. Private PostgreSQL 16 with encrypted backups and a practical restore workflow.
-3. Private S3-compatible object storage with public-access blocking, encryption, lifecycle/versioning, and a bucket-scoped service identity.
-4. A publicly trusted HTTPS ingress/custom domain that preserves proxy headers and supports request-size, timeout, and rate boundaries.
-
-These may be one integrated provider or separate services. The material trade-off is operational ownership: an integrated managed platform is simpler, while separately managed cloud services offer finer network/IAM controls. Do not provision paid resources until the owner authorizes the provider, region, and expected cost.
+Railway Hobby is selected and deployed for staging only. The `Woven Staging` project uses one `us-west2` API replica, one private `us-west2` PostgreSQL replica, a private `sjc` bucket, Railway secret injection, a controlled pre-deploy migration gate, and Railway HTTPS ingress. No production environment, extra replica/region, custom domain, public PostgreSQL proxy, or public bucket is configured. See `staging-deployment-report.md` for sanitized current evidence and the provider's cost-limit constraint.

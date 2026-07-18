@@ -18,6 +18,14 @@ Status: **Railway staging backend deployed; Apple registration, signing, and phy
 
 No credential, secret, token, connection string, private object name, or user data is recorded here.
 
+## Configured application variable names
+
+Railway resolves these names from fixed staging policy values, generated staging-only secrets, or private service/bucket references. Values are intentionally omitted:
+
+`APP_ENV`, `DEBUG`, `PUBLIC_BASE_URL`, `DATABASE_URL`, `SECRET_KEY`, `REFRESH_TOKEN_PEPPER`, `APPLE_CLIENT_ID`, `TRUSTED_HOSTS`, `CORS_ORIGINS`, `PORT`, `STORAGE_BACKEND`, `ENFORCE_DEVICE_SIGNATURES`, `OBJECT_STORAGE_ENDPOINT`, `OBJECT_STORAGE_BUCKET`, `OBJECT_STORAGE_REGION`, `OBJECT_STORAGE_ACCESS_KEY`, `OBJECT_STORAGE_SECRET_KEY`, `OBJECT_STORAGE_ADDRESSING_STYLE`, and `OBJECT_STORAGE_SERVER_SIDE_ENCRYPTION`.
+
+`APPLE_ISSUER` and `APPLE_JWKS_URL` retain the pinned official defaults. The exact non-secret and human-controlled value inventory, source, configuration location, and verification method are recorded in `staging-values.md`.
+
 ## Railway controls
 
 - The project contains only the `staging` environment. Railway's empty default `production` environment was removed before services were created.
@@ -57,3 +65,7 @@ No credential, secret, token, connection string, private object name, or user da
 - In Apple Developer: register the unique staging App ID/audience, enable Sign in with Apple, configure the team/profile/certificate, and inject the Railway HTTPS base URL into the Staging archive.
 - On physical hardware: install the exact Staging build on two iPhones and complete every item in `two-iphone-staging-results.md`.
 - APNs delivery/signing, backup restore drills, recovery, post-revocation content-key rotation, formal security review, incident-response ownership, production infrastructure, and public launch remain out of scope.
+
+## Recommended APNs milestone after physical verification
+
+After every two-iPhone checklist item has a recorded result, add APNs as a separate fail-closed milestone: create a least-privilege Apple APNs signing key; store the `.p8` material only in the deployment secret manager; configure `APNS_TEAM_ID`, `APNS_KEY_ID`, `APNS_KEY_PATH`, and `APNS_BUNDLE_ID`; register and rotate device tokens; send only opaque wake-up/event-type payloads with no account, vault, request, filename, media, token, key, share, or invitation data; and verify foreground/background delivery, token replacement, revoked-device rejection, logging redaction, retry/idempotency, and polling fallback on both physical iPhones. Do not begin this milestone before the current polling-based physical workflow passes.

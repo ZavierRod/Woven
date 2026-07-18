@@ -5,7 +5,12 @@
     "dockerfilePath": "Dockerfile"
   },
   "deploy": {
-    "preDeployCommand": "python scripts/validate_staging_config.py && alembic upgrade head && python scripts/verify_migration.py && alembic check",
+    "preDeployCommand": [
+      "python scripts/validate_staging_config.py",
+      "alembic upgrade head",
+      "python scripts/verify_migration.py",
+      "alembic check"
+    ],
     "healthcheckPath": "/ready",
     "healthcheckTimeout": 120,
     "restartPolicyType": "ON_FAILURE",

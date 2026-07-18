@@ -128,17 +128,19 @@ The final pushed commit is intentionally recorded in the completion response; a 
 
 ## Final verification results
 
-- Backend: **112 passed** in 40.36 seconds on Python 3.12 in the hardened container.
+- Backend: **115 passed** on Python 3.12 with the deployed dependency set.
 - PostgreSQL migration verification: upgrade/downgrade/re-upgrade and `alembic check` passed.
-- Python static/dependency results: Ruff passed; Bandit passed with the OAuth `bearer` scheme false positive explicitly scoped as `B105`; `pip-audit` found no unexcepted vulnerability and reported seven records ignored under the five documented Starlette advisory IDs.
-- iOS unit tests: **8 passed**, zero failures, in the final post-fix run.
-- iOS UI tests: **6 executions passed**, zero failures, in 144.62 seconds in the final post-fix run.
-- Xcode Release analysis: exit 0 after the preview-boundary fix, with no product diagnostic.
+- Python static/dependency results: Ruff and Bandit passed; `pip-audit` found no known vulnerability in the exact installed staging dependency environment and uses no advisory exceptions.
+- iOS Staging unit tests: **8 passed**, zero failures, with testability enabled only for the Simulator test build.
+- iOS Staging UI tests: **6 executions passed**, zero failures, against the app bundle configured with the Railway HTTPS origin.
+- Xcode Release analysis: exit 0 with no product diagnostic.
 
-## Remaining development-only and external-review items
+## Remaining external and physical-device items
 
-- A deployed staging environment was not provisioned because no hosting, DNS/TLS, Apple entitlement/profile, real Apple IDs, PostgreSQL service, private object bucket, secret manager, or APNs credential was supplied. `staging-readiness.md` is the exact two-iPhone/operator runbook.
-- Physical-device Apple sign-in, Face ID/passcode, screenshot/screen-recording, background/reboot, clock-skew, network interruption, private object-store inspection, ingress headers/rates, and backup/restore must be recorded in staging.
+- Railway staging is now deployed with HTTPS ingress, private PostgreSQL, a private object bucket, staging-only secrets, strict remote configuration, and a controlled migration gate. See `staging-deployment-report.md` for the current sanitized deployment evidence.
+- Apple Developer registration remains required for the staging App ID/audience, Sign in with Apple capability, team, certificate, and provisioning profile. Until then, the Apple-authenticated remote account/device/two-user matrix cannot be executed and no physical artifact can be signed or installed.
+- Physical-device Apple sign-in, refresh rotation/reuse, device signing and revocation, two-user Pair flows, Face ID/passcode, screenshot/screen-recording, background/reboot, clock-skew, and network interruption must be recorded in staging. Local or Simulator results do not satisfy those gates.
+- Private object-store behavior and public ingress headers/rates have been verified against Railway. PostgreSQL backup/restore remains an operator drill before wider internal testing.
 - APNs, account/device recovery, replacement-device policy, post-revocation content-key rotation, operational alerting/ownership, privacy/retention policy, and production traffic-analysis decisions remain product/deployment work.
-- Follow-up on 2026-07-17: compatible FastAPI 0.139.2 and Starlette 1.3.1 releases became available, so all five Starlette audit exceptions were removed. The historical audit result above describes the prior milestone only; current CI has no ignored vulnerability IDs.
+- Follow-up on 2026-07-17: compatible FastAPI 0.139.2 and Starlette 1.3.1 releases became available, so all five Starlette audit exceptions were removed; current CI has no ignored vulnerability IDs.
 - Professional cryptographic protocol review, mobile application-security review, penetration testing, privacy review, and production infrastructure review remain required before public or high-value use.

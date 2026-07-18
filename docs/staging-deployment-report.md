@@ -35,20 +35,21 @@ No credential, secret, token, connection string, private object name, or user da
 |---|---|---|
 | Human values configured in secret manager | Passed with Apple limitation | Independent generated application secrets and private service references exist; intended staging Apple audience is configured but not yet registered in Apple Developer. |
 | Startup configuration validation | Passed | Railway-resolved variables passed `validate_staging_config.py`; development auth, debug, local DB/storage, wildcard hosts/CORS, and unsigned-device mode remain disabled. |
-| Migration upgrade/current/check | Passed | Railway pre-deploy runs validator, `alembic upgrade head`, `alembic current`, and `alembic check`; deployment is promoted only after success. |
+| Migration upgrade/revision/check | Passed | Railway pre-deploy runs the staging validator, `alembic upgrade head`, an explicit database-head verifier, and `alembic check`; deployment is promoted only after success. |
 | Public HTTPS health/readiness/security headers | Passed | `/health` and `/ready` returned 200 through Railway HTTPS; HSTS, no-store, nosniff, and request ID were observed. |
 | Remote docs and development auth absent | Passed | Docs/OpenAPI, Pair dev session, and password signup paths returned 404 under valid request schemas. |
 | Remote adversarial boundaries | Passed | Untrusted Host rejected by edge/app, 22 MiB streamed body returned 413, invalid bearer returned 401 without echo, unsafe request ID was replaced, wildcard CORS absent, and auth rate limiting returned 429 with `Retry-After`. |
 | PostgreSQL private/restart | Passed | Public TCP proxy removed; private endpoint retained; readiness passes after API restart. Backup/restore remains an operator drill. |
 | Object store private/opaque/delete | Passed | Woven adapter PUT/GET/DELETE passed with a synthetic ciphertext object; anonymous list/GET were rejected; post-test metadata returned zero objects/bytes. |
 | Structured log redaction inspection | Passed | Build, migration, application, and request logs exposed only package names, safe configuration summary fields, routes/statuses, and opaque request IDs; no configured secret values were observed. |
+| Apple-authenticated remote matrix | Not tested | Real Apple identity tokens are unavailable until the staging App ID/audience and Sign in with Apple capability are registered. Account creation, refresh rotation/reuse, device enrollment/signing, invitation lifecycle, two-user unlock, media, replay, restart, and revocation therefore remain physical-device acceptance work. Local automated coverage is not substituted for remote evidence. |
 | Two physical iPhones | Not tested | Use `two-iphone-staging-results.md`; Apple Developer access and two devices are required. |
 
 ## Provider-independent verification
 
 - Backend: 115 tests passed on Python 3.12 with the deployment dependency set; Ruff and Bandit passed; installed-environment `pip-audit` reported no known vulnerabilities.
 - The container upgrades pip to a fixed 26.1.2-or-newer release before installing requirements and still runs as the non-root `woven` user.
-- Previous iOS Staging Simulator build, plist inspection, static analysis, eight unit/state tests, and six UI/launch executions remain valid for the source lineage. They are not physical-device evidence.
+- Current iOS verification passed with the Railway HTTPS origin and `com.zavier.Woven.staging`: the optimized Staging Simulator artifact built, its display name/bundle ID and Sign in with Apple entitlement were inspected, eight unit/state tests and six UI/launch executions passed with testability enabled only for the test build, and Release analysis passed. This is not Apple signing or physical-device evidence.
 
 ## Explicitly deferred
 

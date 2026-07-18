@@ -8,7 +8,6 @@ Create Date: 2026-01-13 14:41:51.131457
 from typing import Sequence, Union
 
 from alembic import op
-import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
@@ -67,5 +66,4 @@ def downgrade() -> None:
     op.drop_index(op.f('ix_access_requests_id'), table_name='access_requests')
     op.drop_table('access_requests')
     # ### end Alembic commands ###
-
 

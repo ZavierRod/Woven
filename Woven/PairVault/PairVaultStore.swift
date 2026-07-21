@@ -46,7 +46,9 @@ final class PairVaultStore {
     private(set) var accessPhase: PairAccessPhase = .none
     private(set) var incomingRequests: [PairAccessRecord] = []
     private(set) var decryptedMedia: [PairDecryptedMedia] = []
+    #if WOVEN_DEVELOPMENT_AUTH
     private(set) var account: PairDevelopmentAccount?
+    #endif
     private(set) var invitationToken: String?
     private(set) var isWorking = false
     private(set) var isImporting = false
@@ -63,7 +65,13 @@ final class PairVaultStore {
         return vault.members.contains { $0.userID != session.userID && $0.status == "active" }
     }
 
-    var requiresPartnerInviteCode: Bool { account == nil }
+    var requiresPartnerInviteCode: Bool {
+        #if WOVEN_DEVELOPMENT_AUTH
+        account == nil
+        #else
+        true
+        #endif
+    }
 
     @ObservationIgnored private let dependencies: PairVaultDependencies
     @ObservationIgnored private var session: PairSession?
@@ -83,7 +91,7 @@ final class PairVaultStore {
         self.init(dependencies: .live())
     }
 
-    #if DEBUG
+    #if WOVEN_DEVELOPMENT_AUTH
     static func preview(phase: PairVaultScreenPhase) -> PairVaultStore {
         let store = PairVaultStore()
         store.phase = phase
@@ -97,6 +105,7 @@ final class PairVaultStore {
     }
     #endif
 
+    #if WOVEN_DEVELOPMENT_AUTH
     func signIn(as selectedAccount: PairDevelopmentAccount) async {
         guard !isWorking else { return }
         logout()
@@ -115,13 +124,16 @@ final class PairVaultStore {
             errorMessage = error.localizedDescription
         }
     }
+    #endif
 
     func signIn(session newSession: PairSession) async {
         guard !isWorking else { return }
         logout()
         isWorking = true
         phase = .loading
+        #if WOVEN_DEVELOPMENT_AUTH
         account = nil
+        #endif
         defer { isWorking = false }
         do {
             try await enroll(session: newSession)
@@ -186,6 +198,7 @@ final class PairVaultStore {
         var shareWasSaved = false
 
         do {
+            #if WOVEN_DEVELOPMENT_AUTH
             let targetUserID: Int
             if let account {
                 let partnerSession = try await dependencies.api.developmentSession(account.partner)
@@ -198,6 +211,14 @@ final class PairVaultStore {
                 let partnerAccount = try await dependencies.api.account(inviteCode: code, session: session)
                 targetUserID = partnerAccount.userID
             }
+            #else
+            let code = (partnerInviteCode ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !code.isEmpty else {
+                throw PairVaultError.relay("Enter your partner’s invite code.")
+            }
+            let partnerAccount = try await dependencies.api.account(inviteCode: code, session: session)
+            let targetUserID = partnerAccount.userID
+            #endif
             let partnerDevice = try await dependencies.api.device(for: targetUserID, session: session)
             guard partnerDevice.userID == targetUserID,
                   let partnerPublicKey = Data(base64Encoded: partnerDevice.agreementPublicKey) else {
@@ -687,7 +708,9 @@ final class PairVaultStore {
         pollingTask?.cancel()
         pollingTask = nil
         clearSession()
+        #if WOVEN_DEVELOPMENT_AUTH
         account = nil
+        #endif
         phase = .signedOut
         accessPhase = .none
         errorMessage = nil

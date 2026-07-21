@@ -2,6 +2,29 @@ import Foundation
 import Testing
 @testable import Woven
 
+@MainActor
+struct StagingAuthenticationBoundaryTests {
+    private let configuration = AppConfiguration(
+        environment: .staging,
+        apiBaseURL: URL(string: "https://staging.example.com")!
+    )
+
+    @Test
+    func stagingNeverPermitsDevelopmentAccounts() {
+        #expect(!configuration.permitsDevelopmentAccounts)
+    }
+
+    @Test
+    func unreadableAppleCredentialFailsSafely() async {
+        let store = ProductionAuthenticationStore(configuration: configuration)
+
+        await store.signIn(identityToken: Data([0xff]), nonce: "unused", fullName: nil)
+
+        #expect(store.session == nil)
+        #expect(store.errorMessage == "Apple returned an unreadable credential.")
+    }
+}
+
 struct SoloVaultCryptographyTests {
     @Test
     func aesGCMRoundTripAndTamperDetection() async throws {

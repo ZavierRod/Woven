@@ -233,12 +233,12 @@ struct PairVaultTwoClientStateTests {
             }
         )
 
-        await bob.signIn(as: .bob)
+        await bob.signIn(session: session(for: 2))
         #expect(bob.phase == .ready)
-        await alice.signIn(as: .alice)
+        await alice.signIn(session: session(for: 1))
         #expect(alice.phase == .ready)
 
-        await alice.createVault(named: "Two-person memories")
+        await alice.createVault(named: "Two-person memories", partnerInviteCode: "DEV2")
         let token = try #require(alice.invitationToken)
         guard case .waitingForPartner(let createdVault) = alice.phase else {
             Issue.record("Creator did not enter the invitation wait state")
@@ -324,7 +324,7 @@ struct PairVaultTwoClientStateTests {
         bob.logout()
         #expect(bob.decryptedMedia.isEmpty)
         #expect(bob.phase == .signedOut)
-        await bob.signIn(as: .bob)
+        await bob.signIn(session: session(for: 2))
         guard case .locked = bob.phase else {
             Issue.record("Second member did not relock after logout and sign-in")
             return
@@ -337,7 +337,7 @@ struct PairVaultTwoClientStateTests {
                 lockTimeout: .seconds(2)
             ) { _ in await authentication.record() }
         )
-        await relaunchedAlice.signIn(as: .alice)
+        await relaunchedAlice.signIn(session: session(for: 1))
         guard case .locked = relaunchedAlice.phase else {
             Issue.record("Relaunched Pair vault was not locked")
             return
@@ -391,9 +391,9 @@ struct PairVaultTwoClientStateTests {
         let alice = PairVaultStore(dependencies: dependencies(relay: relay, secrets: InMemoryPairSecrets()))
         let bob = PairVaultStore(dependencies: dependencies(relay: relay, secrets: InMemoryPairSecrets()))
 
-        await bob.signIn(as: .bob)
-        await alice.signIn(as: .alice)
-        await alice.createVault(named: "Tamper test")
+        await bob.signIn(session: session(for: 2))
+        await alice.signIn(session: session(for: 1))
+        await alice.createVault(named: "Tamper test", partnerInviteCode: "DEV2")
         let token = try #require(alice.invitationToken)
         try await bob.refresh()
         await bob.acceptInvitation(token: token)
@@ -430,6 +430,18 @@ struct PairVaultTwoClientStateTests {
             updates: PairDevelopmentPollingTransport(),
             lockTimeout: lockTimeout,
             authenticate: authenticate
+        )
+    }
+
+    private func session(for id: Int) -> PairSession {
+        PairSession(
+            accessToken: "test-token-\(id)",
+            tokenType: "bearer",
+            userID: id,
+            username: id == 1 ? "alice" : "bob",
+            email: "user-\(id)@example.invalid",
+            fullName: nil,
+            inviteCode: "DEV\(id)"
         )
     }
 }
@@ -509,6 +521,15 @@ private final class EnforcingPairRelay: PairRelayAPI, @unchecked Sendable {
         requests.values.map(\.context.requesterEphemeralPublicKey)
     }
 
+    func account(inviteCode: String, session: PairSession) async throws -> PairAccountLookup {
+        guard inviteCode == "DEV1" || inviteCode == "DEV2" else {
+            throw PairVaultError.relay("Unknown test invite code")
+        }
+        let id = inviteCode == "DEV1" ? 1 : 2
+        return PairAccountLookup(userID: id, username: id == 1 ? "alice" : "bob")
+    }
+
+    #if WOVEN_DEVELOPMENT_AUTH
     func developmentSession(_ account: PairDevelopmentAccount) async throws -> PairSession {
         let id = account == .alice ? 1 : 2
         return PairSession(
@@ -521,6 +542,7 @@ private final class EnforcingPairRelay: PairRelayAPI, @unchecked Sendable {
             inviteCode: "DEV\(id)"
         )
     }
+    #endif
 
     func registerDevice(
         session: PairSession,

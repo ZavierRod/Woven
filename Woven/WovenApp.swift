@@ -12,11 +12,15 @@ struct WovenApp: App {
         WindowGroup {
             switch configuration {
             case .success(let configuration):
+                #if WOVEN_DEVELOPMENT_AUTH
                 if configuration.permitsDevelopmentAccounts {
                     DevelopmentRootView()
                 } else {
                     ProductionRootView(configuration: configuration)
                 }
+                #else
+                ProductionRootView(configuration: configuration)
+                #endif
             case .failure(let error):
                 ConfigurationErrorView(message: error.localizedDescription)
             }
@@ -24,6 +28,7 @@ struct WovenApp: App {
     }
 }
 
+#if WOVEN_DEVELOPMENT_AUTH
 private struct DevelopmentRootView: View {
     @State private var soloVaultStore = SoloVaultStore()
     @State private var pairVaultStore = PairVaultStore()
@@ -32,6 +37,7 @@ private struct DevelopmentRootView: View {
         WovenVaultTabs(soloVaultStore: soloVaultStore, pairVaultStore: pairVaultStore)
     }
 }
+#endif
 
 private struct ProductionRootView: View {
     private let configuration: AppConfiguration

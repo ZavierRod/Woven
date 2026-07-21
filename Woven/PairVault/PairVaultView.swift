@@ -179,12 +179,14 @@ struct PairVaultScreen: View {
 
     @ToolbarContentBuilder
     private var toolbar: some ToolbarContent {
+        #if WOVEN_DEVELOPMENT_AUTH
         if store.account != nil {
             ToolbarItem(placement: .topBarLeading) {
                 Button("Sign Out") { store.logout() }
                     .accessibilityLabel("Sign out of Pair development account")
             }
         }
+        #endif
         if case .unlocked = store.phase {
             ToolbarItemGroup(placement: .topBarTrailing) {
                 Button { store.lock() } label: { Image(systemName: "lock.fill") }
@@ -242,7 +244,7 @@ struct PairVaultScreen: View {
     }
 
     private var accountSelection: some View {
-        #if DEBUG
+        #if WOVEN_DEVELOPMENT_AUTH
         ScrollView {
             VStack(spacing: WovenTheme.spacing24) {
                 Spacer(minLength: 52)
@@ -559,9 +561,11 @@ struct PairVaultScreen: View {
                 .foregroundStyle(WovenTheme.textSecondary)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, WovenTheme.spacing32)
+            #if WOVEN_DEVELOPMENT_AUTH
             Button("Choose an account") { store.logout() }
                 .buttonStyle(.borderedProminent)
                 .accessibilityLabel("Return to Pair account selection")
+            #endif
         }
     }
 

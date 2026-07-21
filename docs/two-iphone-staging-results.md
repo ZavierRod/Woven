@@ -8,14 +8,20 @@ Allowed result values: **Passed**, **Failed**, **Blocked**, **Not tested**. Mark
 |---|---|
 | Date/time (UTC) | |
 | Operator | |
-| Staging API hostname | |
-| Backend Git commit/image digest | |
-| Alembic revision | |
+| Staging API hostname | `woven-api-staging.up.railway.app` |
+| Backend Git commit/image digest | `207b11f4d7de5cf47d15ac06f3f975197e5774c4` (deployment message; image digest retained in Railway) |
+| Alembic revision | `d7a4c10b8e21` |
 | iOS staging Git commit/build number | |
 | iPhone A model / iOS version | |
 | iPhone B model / iOS version | |
 | Installation method/profile class | |
 | Sanitized log correlation window | |
+
+## Non-hardware preflight (not physical evidence)
+
+As of 2026-07-21, the shared `Woven-Staging` scheme uses Staging for test, launch, profile, analyze, and archive actions. The registered bundle ID, automatic-signing team, Sign in with Apple entitlement, backend Apple audience, and injected Railway HTTPS URL match. Simulator build/launch, generic-device signed build, archive, ten unit/state tests, six UI/launch executions, and Staging/Release analysis passed. The Staging UI exposed no development-account selector. These results do not change any physical checklist result below from **Not tested**.
+
+First hardware action: connect iPhone A by cable, unlock it and trust this Mac, enable Developer Mode if prompted, select iPhone A as the destination for `Woven-Staging`, and install the exact committed build. Record only sanitized device metadata, then install the same commit on iPhone B before checklist item 2.
 
 ## Checklist and results
 

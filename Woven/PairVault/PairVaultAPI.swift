@@ -4,7 +4,9 @@ import Foundation
 @MainActor
 protocol PairRelayAPI: Sendable {
     func configureDeviceSigning(accountID: Int, deviceID: String, privateKey: Data)
+    #if WOVEN_DEVELOPMENT_AUTH
     func developmentSession(_ account: PairDevelopmentAccount) async throws -> PairSession
+    #endif
     func account(inviteCode: String, session: PairSession) async throws -> PairAccountLookup
     func registerDevice(
         session: PairSession,
@@ -86,9 +88,11 @@ final class PairVaultAPIClient: PairRelayAPI, @unchecked Sendable {
         signingContext = SigningContext(accountID: accountID, deviceID: deviceID, privateKey: privateKey)
     }
 
+    #if WOVEN_DEVELOPMENT_AUTH
     func developmentSession(_ account: PairDevelopmentAccount) async throws -> PairSession {
         try await send(path: "/pair-v2/dev/session/\(account.rawValue)", method: "POST", token: nil, body: EmptyBody())
     }
+    #endif
 
     func account(inviteCode: String, session: PairSession) async throws -> PairAccountLookup {
         let encoded = inviteCode.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? inviteCode

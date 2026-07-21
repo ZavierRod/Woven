@@ -38,9 +38,9 @@ Configure secrets only in the selected hosting platform’s secret manager or Xc
 
 | Xcode/Apple value | Obtain from | Secret | Configure in | Verification | Separate local value |
 |---|---|---:|---|---|---:|
-| `WOVEN_STAGING_API_BASE_URL` | Deployed staging URL | No | CI/archive command or uncommitted local Xcode user setting | `https`, non-local; built `Info.plist` contains only that URL | Debug uses loopback |
-| `WOVEN_STAGING_BUNDLE_IDENTIFIER` | Apple Developer account owner | No | CI/archive command or uncommitted Xcode setting | Unique registered App ID; built bundle identifier matches | Debug currently uses `com.zavier.Woven` |
-| `WOVEN_STAGING_DEVELOPMENT_TEAM` | Apple Developer membership | No | CI/archive command or uncommitted Xcode setting | Xcode signing report and installed profile match | Simulator builds can disable signing |
+| `WOVEN_STAGING_API_BASE_URL` | Deployed staging URL | No | Staging target build setting | `https`, non-local; built and archived `Info.plist` contains only that URL | Debug uses loopback |
+| `WOVEN_STAGING_BUNDLE_IDENTIFIER` | Apple Developer account owner | No | Staging target build setting | Registered `com.zavier.Woven.staging`; built bundle identifier matches | Debug currently uses `com.zavier.Woven` |
+| `WOVEN_STAGING_DEVELOPMENT_TEAM` | Apple Developer membership | No | Staging target automatic-signing setting | Generic-device build, archive, application identifier, and managed profile match | Simulator builds can disable signing |
 | Sign in with Apple capability | Apple Developer portal | No | Staging App ID and Xcode signing profile | Entitlements contain `com.apple.developer.applesignin`; physical sign-in succeeds | Simulator/unit tests use mocks |
 | Staging development/distribution certificate and provisioning profile | Apple Developer/Xcode managed signing | Sensitive credential material | Apple portal, Xcode account, or CI signing vault | Archive/export/install on both registered iPhones | Simulator uses ad-hoc signing |
 | iPhone A/B device registration, if using development/ad hoc install | Apple Developer account and physical devices | Device identifier is sensitive | Apple portal/Xcode | Both devices install the exact staging commit | No |

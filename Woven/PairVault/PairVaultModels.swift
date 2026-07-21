@@ -1,5 +1,6 @@
 import Foundation
 
+#if WOVEN_DEVELOPMENT_AUTH
 enum PairDevelopmentAccount: String, CaseIterable, Codable, Identifiable, Sendable {
     case alice
     case bob
@@ -8,6 +9,7 @@ enum PairDevelopmentAccount: String, CaseIterable, Codable, Identifiable, Sendab
     var displayName: String { rawValue.capitalized }
     var partner: Self { self == .alice ? .bob : .alice }
 }
+#endif
 
 struct PairSession: Codable, Equatable, Sendable {
     let accessToken: String

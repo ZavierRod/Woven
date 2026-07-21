@@ -1,6 +1,6 @@
 # Staging deployment record
 
-Status: **Railway staging backend deployed; Apple registration, signing, and physical-iPhone verification remain pending.**
+Status: **Railway staging backend and Apple/Xcode signing configuration are ready; physical-iPhone verification remains pending.**
 
 ## Provider and artifact identity
 
@@ -13,7 +13,7 @@ Status: **Railway staging backend deployed; Apple registration, signing, and phy
 | Object bucket | `woven-staging-ciphertext` |
 | Compute / bucket region | `us-west2` / `sjc` (US West, California) |
 | Public HTTPS API hostname | `woven-api-staging.up.railway.app` |
-| Backend Git commit | Final pushed deployment commit is recorded in the task completion report and Railway deployment message. |
+| Backend Git commit | `207b11f4d7de5cf47d15ac06f3f975197e5774c4` |
 | Alembic revision | `d7a4c10b8e21` (head) |
 
 No credential, secret, token, connection string, private object name, or user data is recorded here.
@@ -41,7 +41,7 @@ Railway resolves these names from fixed staging policy values, generated staging
 
 | Gate | Result | Sanitized evidence |
 |---|---|---|
-| Human values configured in secret manager | Passed with Apple limitation | Independent generated application secrets and private service references exist; intended staging Apple audience is configured but not yet registered in Apple Developer. |
+| Human values configured in secret manager | Passed | Independent generated application secrets and private service references exist; the Railway Apple audience and registered staging App ID both equal `com.zavier.Woven.staging`. |
 | Startup configuration validation | Passed | Railway-resolved variables passed `validate_staging_config.py`; development auth, debug, local DB/storage, wildcard hosts/CORS, and unsigned-device mode remain disabled. |
 | Migration upgrade/revision/check | Passed | Railway pre-deploy runs the staging validator, `alembic upgrade head`, an explicit database-head verifier, and `alembic check`; deployment is promoted only after success. |
 | Public HTTPS health/readiness/security headers | Passed | `/health` and `/ready` returned 200 through Railway HTTPS; HSTS, no-store, nosniff, and request ID were observed. |
@@ -50,20 +50,22 @@ Railway resolves these names from fixed staging policy values, generated staging
 | PostgreSQL private/restart | Passed | Public TCP proxy removed; private endpoint retained; readiness passes after API restart. Backup/restore remains an operator drill. |
 | Object store private/opaque/delete | Passed | Woven adapter PUT/GET/DELETE passed with a synthetic ciphertext object; anonymous list/GET were rejected; post-test metadata returned zero objects/bytes. |
 | Structured log redaction inspection | Passed | Build, migration, application, and request logs exposed only package names, safe configuration summary fields, routes/statuses, and opaque request IDs; no configured secret values were observed. |
-| Apple-authenticated remote matrix | Not tested | Real Apple identity tokens are unavailable until the staging App ID/audience and Sign in with Apple capability are registered. Account creation, refresh rotation/reuse, device enrollment/signing, invitation lifecycle, two-user unlock, media, replay, restart, and revocation therefore remain physical-device acceptance work. Local automated coverage is not substituted for remote evidence. |
+| Apple-authenticated remote matrix | Not tested | The App ID, entitlement, provisioning configuration, and backend audience are ready, but real Apple identity tokens require a physical signed-in device. Account creation, refresh rotation/reuse, device enrollment/signing, invitation lifecycle, two-user unlock, media, replay, restart, and revocation remain physical-device acceptance work. Local automated coverage is not substituted for remote evidence. |
 | Two physical iPhones | Not tested | Use `two-iphone-staging-results.md`; Apple Developer access and two devices are required. |
 
 ## Provider-independent verification
 
 - Backend: 115 tests passed on Python 3.12 with the deployment dependency set; Ruff and Bandit passed; installed-environment `pip-audit` reported no known vulnerabilities.
 - The container upgrades pip to a fixed 26.1.2-or-newer release before installing requirements and still runs as the non-root `woven` user.
-- Current iOS verification passed with the Railway HTTPS origin and `com.zavier.Woven.staging`: the optimized Staging Simulator artifact built, its display name/bundle ID and Sign in with Apple entitlement were inspected, eight unit/state tests and six UI/launch executions passed with testability enabled only for the test build, and Release analysis passed. This is not Apple signing or physical-device evidence.
+- Current iOS verification passed with the Railway HTTPS origin and `com.zavier.Woven.staging`: the `Woven-Staging` scheme resolves every action to Staging, the Simulator build launched with only Sign in with Apple visible, the generic-device build and Xcode archive succeeded using automatic Apple Development signing, and the signed application/profile contain the registered bundle/application identifier and `com.apple.developer.applesignin = Default` entitlement. The archive's `Info.plist` contains the expected HTTPS API origin.
+- Ten Staging unit/state tests and six UI/launch executions passed (thirteen logical tests in Xcode's result summary). The tests include fail-closed unreadable Apple credentials and proof that Staging never permits deterministic development accounts. Both Staging and Release static analysis passed. Development login types, UI, and callable API methods are compiled only when the explicit Debug-only `WOVEN_DEVELOPMENT_AUTH` condition is present; normal Staging settings do not define it.
+- The signed archive uses a development provisioning profile (`get-task-allow = true`), which is appropriate for the requested device-development validation. Distribution/App Store export was not requested or claimed. No physical-device, Face ID, passcode, privacy-capture, reboot, or two-phone result is inferred from these checks.
 
 ## Explicitly deferred
 
 - In Railway: no action is required unless the owner chooses a different cost policy. Railway rejected the authorized $5 hard ceiling because its minimum is $10; changing that boundary requires explicit new authorization. Monitor actual usage and stop the staging services before $5 if necessary.
-- In Apple Developer: register the unique staging App ID/audience, enable Sign in with Apple, configure the team/profile/certificate, and inject the Railway HTTPS base URL into the Staging archive.
-- On physical hardware: install the exact Staging build on two iPhones and complete every item in `two-iphone-staging-results.md`.
+- In Apple Developer/Xcode: no remaining non-hardware configuration issue was found. Interactive account or provisioning approval may still appear when a physical device is first selected.
+- On physical hardware: connect and trust iPhone A, enable Developer Mode if prompted, select it as the `Woven-Staging` run destination, and install the exact committed build. Then repeat the installation on iPhone B before beginning the two-user checklist in `two-iphone-staging-results.md`.
 - APNs delivery/signing, backup restore drills, recovery, post-revocation content-key rotation, formal security review, incident-response ownership, production infrastructure, and public launch remain out of scope.
 
 ## Recommended APNs milestone after physical verification

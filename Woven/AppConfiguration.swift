@@ -53,7 +53,7 @@ struct AppConfiguration: Sendable {
     }
 
     var permitsDevelopmentAccounts: Bool {
-        #if DEBUG
+        #if WOVEN_DEVELOPMENT_AUTH
         environment == .local || environment == .test
         #else
         false

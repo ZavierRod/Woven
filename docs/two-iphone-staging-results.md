@@ -19,9 +19,24 @@ Allowed result values: **Passed**, **Failed**, **Blocked**, **Not tested**. Mark
 
 ## Non-hardware preflight (not physical evidence)
 
-As of 2026-07-21, the shared `Woven-Staging` scheme uses Staging for test, launch, profile, analyze, and archive actions. The registered bundle ID, automatic-signing team, Sign in with Apple entitlement, backend Apple audience, and injected Railway HTTPS URL match. Simulator build/launch, generic-device signed build, archive, ten unit/state tests, six UI/launch executions, and Staging/Release analysis passed. The Staging UI exposed no development-account selector. These results do not change any physical checklist result below from **Not tested**.
+As of 2026-07-23, the shared `Woven-Staging` scheme uses Staging for test, launch, profile, analyze, and archive actions. The registered bundle ID, automatic-signing team, Sign in with Apple entitlement, backend Apple audience, and injected Railway HTTPS URL match. Simulator build/launch, generic-device signed build, archive, ten unit/state tests, six UI/launch executions, and Staging/Release analysis passed. The Staging UI exposed no development-account selector. These results do not change any physical checklist result below from **Not tested**.
 
-First hardware action: connect iPhone A by cable, unlock it and trust this Mac, enable Developer Mode if prompted, select iPhone A as the destination for `Woven-Staging`, and install the exact committed build. Record only sanitized device metadata, then install the same commit on iPhone B before checklist item 2.
+The operator reported that an earlier Staging build ran on iPhone A and completed
+Sign in with Apple. The build commit, device metadata, and remaining hardware
+behaviors were not recorded, so the formal rows below remain **Not tested**.
+After Google OAuth configuration and deployment, install the exact new commit on
+iPhone A and the Simulator before beginning the interim flow.
+
+## One-iPhone plus Simulator interim test
+
+This is useful functional evidence but does **not** replace the two-physical-iPhone
+hardware acceptance results below. After Google OAuth identifiers are configured
+and the matching backend revision is deployed, use Sign in with Apple on the
+physical iPhone and Sign in with Google on the Simulator. Confirm they receive
+different Woven user IDs, then exercise Pair Vault creation, invitation, join,
+upload, request, approval, consume, and replay rejection in both directions.
+Record Face ID/passcode, reboot, capture, recording, and physical-device results
+only for the real iPhone; leave the second-device hardware rows Not tested.
 
 ## Checklist and results
 

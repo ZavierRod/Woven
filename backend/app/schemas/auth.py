@@ -60,6 +60,11 @@ class AppleSignInRequest(BaseModel):
     device_id: Optional[str] = None
 
 
+class GoogleSignInRequest(BaseModel):
+    id_token: str
+    device_id: Optional[str] = None
+
+
 class RefreshRequest(BaseModel):
     refresh_token: str
 

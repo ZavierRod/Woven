@@ -14,6 +14,8 @@ Configure secrets only in the selected hosting platform’s secret manager or Xc
 | `REFRESH_TOKEN_PEPPER` | Generated independently in secret manager | Yes | Provider secret manager | At least 32 random characters and differs from `SECRET_KEY`; refresh rotation passes | Yes, unrelated disposable value |
 | `APPLE_CLIENT_ID` | Apple Developer identifier configuration | No | Backend environment | Exact `aud` accepted; wrong audience rejected | Test audience for automated tests |
 | `APPLE_ISSUER`, `APPLE_JWKS_URL` | Fixed Apple endpoints | No | Leave repository defaults unchanged | Remote startup rejects anything except Apple's official HTTPS issuer/JWKS endpoint | Same official endpoints |
+| `GOOGLE_CLIENT_ID` | Google Cloud OAuth Web/server client | No | Backend environment | Exact ID-token audience accepted; wrong audience, issuer, expiry, or unverified email rejected | Empty disables the route; tests use a synthetic audience |
+| `GOOGLE_ISSUER`, `GOOGLE_JWKS_URL` | Fixed Google endpoints | No | Leave repository defaults unchanged | Remote startup rejects anything except Google's official HTTPS issuer/JWKS endpoint | Same official endpoints |
 | `TRUSTED_HOSTS` | Staging DNS decision | No | Backend environment | Exact public API hostname included; add `healthcheck.railway.app` on Railway; wildcard and mismatched host fail | Empty locally |
 | `PORT` | Hosting provider | No | Backend environment | `8000` on Railway to match the container listener and healthcheck target | Not required locally |
 | `CORS_ORIGINS` | Browser-client owner, if any | No | Backend environment | Empty for native-only staging, otherwise exact HTTPS origins; wildcard fails startup | Empty locally |
@@ -42,6 +44,9 @@ Configure secrets only in the selected hosting platform’s secret manager or Xc
 | `WOVEN_STAGING_BUNDLE_IDENTIFIER` | Apple Developer account owner | No | Staging target build setting | Registered `com.zavier.Woven.staging`; built bundle identifier matches | Debug currently uses `com.zavier.Woven` |
 | `WOVEN_STAGING_DEVELOPMENT_TEAM` | Apple Developer membership | No | Staging target automatic-signing setting | Generic-device build, archive, application identifier, and managed profile match | Simulator builds can disable signing |
 | Sign in with Apple capability | Apple Developer portal | No | Staging App ID and Xcode signing profile | Entitlements contain `com.apple.developer.applesignin`; physical sign-in succeeds | Simulator/unit tests use mocks |
+| `WOVEN_GOOGLE_IOS_CLIENT_ID` | Google Cloud OAuth iOS client for `com.zavier.Woven.staging` | No | Staging target build setting | Google SDK obtains an ID token for the matching iOS client | Empty hides Google sign-in |
+| `WOVEN_GOOGLE_SERVER_CLIENT_ID` | Same Google Cloud OAuth Web/server client as backend `GOOGLE_CLIENT_ID` | No | Staging target build setting | ID-token audience matches the backend exactly | Empty hides Google sign-in |
+| `WOVEN_GOOGLE_REVERSED_CLIENT_ID` | Reversed form of the Google iOS client ID | No | Staging target URL scheme | OAuth callback returns only to the registered Staging app | Empty until Google OAuth registration |
 | Staging development/distribution certificate and provisioning profile | Apple Developer/Xcode managed signing | Sensitive credential material | Apple portal, Xcode account, or CI signing vault | Archive/export/install on both registered iPhones | Simulator uses ad-hoc signing |
 | iPhone A/B device registration, if using development/ad hoc install | Apple Developer account and physical devices | Device identifier is sensitive | Apple portal/Xcode | Both devices install the exact staging commit | No |
 

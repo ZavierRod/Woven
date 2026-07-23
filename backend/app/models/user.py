@@ -20,8 +20,9 @@ class User(Base):
     profile_picture_url = Column(String, nullable=True)
     invite_code = Column(String, unique=True, index=True, nullable=True)
     
-    # Apple Sign In (for future use)
+    # Federated identities. Provider subjects, not email addresses, identify accounts.
     apple_user_id = Column(String, unique=True, index=True, nullable=True)
+    google_user_id = Column(String, unique=True, index=True, nullable=True)
     auth_generation = Column(Integer, nullable=False, default=0)
     
     # Encryption

@@ -1,6 +1,12 @@
 # Staging deployment record
 
-Status: **Railway staging backend and Apple/Xcode signing configuration are ready; physical-iPhone verification remains pending.**
+Status: **Railway staging backend and Apple/Xcode signing configuration are ready; one iPhone installation and Apple sign-in were operator-reported, while the exact Google-enabled build and hardware acceptance remain pending.**
+
+The current local deployment candidate adds fail-closed Google authentication
+and a new `google_user_id` migration. It is not represented by the deployed
+identity below yet. Google sign-in remains hidden and `/auth/google` remains
+404 until matching Google iOS and Web/server OAuth client IDs are configured;
+no Google client secret is required by Woven.
 
 ## Provider and artifact identity
 
@@ -25,6 +31,10 @@ Railway resolves these names from fixed staging policy values, generated staging
 `APP_ENV`, `DEBUG`, `PUBLIC_BASE_URL`, `DATABASE_URL`, `SECRET_KEY`, `REFRESH_TOKEN_PEPPER`, `APPLE_CLIENT_ID`, `TRUSTED_HOSTS`, `CORS_ORIGINS`, `PORT`, `STORAGE_BACKEND`, `ENFORCE_DEVICE_SIGNATURES`, `OBJECT_STORAGE_ENDPOINT`, `OBJECT_STORAGE_BUCKET`, `OBJECT_STORAGE_REGION`, `OBJECT_STORAGE_ACCESS_KEY`, `OBJECT_STORAGE_SECRET_KEY`, `OBJECT_STORAGE_ADDRESSING_STYLE`, and `OBJECT_STORAGE_SERVER_SIDE_ENCRYPTION`.
 
 `APPLE_ISSUER` and `APPLE_JWKS_URL` retain the pinned official defaults. The exact non-secret and human-controlled value inventory, source, configuration location, and verification method are recorded in `staging-values.md`.
+
+For the pending Google-enabled deployment, Railway must additionally receive
+`GOOGLE_CLIENT_ID` (the non-secret Web/server OAuth client ID). The official
+Google issuer and JWKS settings remain pinned repository defaults.
 
 ## Railway controls
 
@@ -64,6 +74,7 @@ Railway resolves these names from fixed staging policy values, generated staging
 ## Explicitly deferred
 
 - In Railway: no action is required unless the owner chooses a different cost policy. Railway rejected the authorized $5 hard ceiling because its minimum is $10; changing that boundary requires explicit new authorization. Monitor actual usage and stop the staging services before $5 if necessary.
+- In Google Cloud: configure an OAuth consent screen, an iOS OAuth client for `com.zavier.Woven.staging`, and a Web/server OAuth client. Put the resulting non-secret identifiers in the three Staging Xcode settings documented in `staging-values.md`, and put the identical Web/server client ID in Railway as `GOOGLE_CLIENT_ID`. Do not create, download, or commit a client secret for this native ID-token flow.
 - In Apple Developer/Xcode: no remaining non-hardware configuration issue was found. Interactive account or provisioning approval may still appear when a physical device is first selected.
 - On physical hardware: connect and trust iPhone A, enable Developer Mode if prompted, select it as the `Woven-Staging` run destination, and install the exact committed build. Then repeat the installation on iPhone B before beginning the two-user checklist in `two-iphone-staging-results.md`.
 - APNs delivery/signing, backup restore drills, recovery, post-revocation content-key rotation, formal security review, incident-response ownership, production infrastructure, and public launch remain out of scope.

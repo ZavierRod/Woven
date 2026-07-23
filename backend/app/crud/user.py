@@ -46,8 +46,12 @@ class UserCRUD:
         return db.query(User).filter(User.invite_code == invite_code).first()
 
     def get_by_apple_id(self, db: Session, apple_user_id: str) -> Optional[User]:
-        """Get a user by their Apple user ID (for future use)."""
+        """Get a user by their stable Apple subject."""
         return db.query(User).filter(User.apple_user_id == apple_user_id).first()
+
+    def get_by_google_id(self, db: Session, google_user_id: str) -> Optional[User]:
+        """Get a user by their stable Google subject."""
+        return db.query(User).filter(User.google_user_id == google_user_id).first()
 
     def create(self, db: Session, signup: SignUpRequest) -> User:
         """Create a new user with email/password."""

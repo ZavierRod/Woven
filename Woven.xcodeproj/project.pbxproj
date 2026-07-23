@@ -6,6 +6,11 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		A4B7C9D2E301000000000002 /* GoogleSignIn in Frameworks */ = {isa = PBXBuildFile; productRef = A4B7C9D2E301000000000005 /* GoogleSignIn */; };
+		A4B7C9D2E301000000000003 /* GoogleSignInSwift in Frameworks */ = {isa = PBXBuildFile; productRef = A4B7C9D2E301000000000006 /* GoogleSignInSwift */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		D0496EB62EF1C156005DD7AA /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -52,6 +57,8 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A4B7C9D2E301000000000002 /* GoogleSignIn in Frameworks */,
+				A4B7C9D2E301000000000003 /* GoogleSignInSwift in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -112,6 +119,8 @@
 			);
 			name = Woven;
 			packageProductDependencies = (
+				A4B7C9D2E301000000000005 /* GoogleSignIn */,
+				A4B7C9D2E301000000000006 /* GoogleSignInSwift */,
 			);
 			productName = Woven;
 			productReference = D0496EA82EF1C153005DD7AA /* Woven.app */;
@@ -197,6 +206,9 @@
 			minimizedProjectReferenceProxies = 1;
 			preferredProjectObjectVersion = 77;
 			productRefGroup = D0496EA92EF1C153005DD7AA /* Products */;
+			packageReferences = (
+				A4B7C9D2E301000000000004 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */,
+			);
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
@@ -267,6 +279,30 @@
 			targetProxy = D0496EC02EF1C156005DD7AA /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		A4B7C9D2E301000000000004 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/google/GoogleSignIn-iOS";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 9.0.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		A4B7C9D2E301000000000005 /* GoogleSignIn */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A4B7C9D2E301000000000004 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */;
+			productName = GoogleSignIn;
+		};
+		A4B7C9D2E301000000000006 /* GoogleSignInSwift */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A4B7C9D2E301000000000004 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */;
+			productName = GoogleSignInSwift;
+		};
+/* End XCSwiftPackageProductDependency section */
 
 /* Begin XCBuildConfiguration section */
 		D0496EC72EF1C156005DD7AA /* Debug */ = {
@@ -418,6 +454,9 @@
 				TARGETED_DEVICE_FAMILY = "1,2";
 				WOVEN_API_BASE_URL = "http://127.0.0.1:8000";
 				WOVEN_ENVIRONMENT = local;
+				WOVEN_GOOGLE_IOS_CLIENT_ID = "";
+				WOVEN_GOOGLE_REVERSED_CLIENT_ID = "";
+				WOVEN_GOOGLE_SERVER_CLIENT_ID = "";
 			};
 			name = Debug;
 		};
@@ -449,6 +488,9 @@
 				TARGETED_DEVICE_FAMILY = "1,2";
 				WOVEN_API_BASE_URL = "";
 				WOVEN_ENVIRONMENT = production;
+				WOVEN_GOOGLE_IOS_CLIENT_ID = "";
+				WOVEN_GOOGLE_REVERSED_CLIENT_ID = "";
+				WOVEN_GOOGLE_SERVER_CLIENT_ID = "";
 			};
 			name = Release;
 		};
@@ -620,6 +662,9 @@
 				TARGETED_DEVICE_FAMILY = "1,2";
 				WOVEN_STAGING_API_BASE_URL = "https://woven-api-staging.up.railway.app";
 				WOVEN_ENVIRONMENT = staging;
+				WOVEN_GOOGLE_IOS_CLIENT_ID = "";
+				WOVEN_GOOGLE_REVERSED_CLIENT_ID = "";
+				WOVEN_GOOGLE_SERVER_CLIENT_ID = "";
 			};
 			name = Staging;
 		};

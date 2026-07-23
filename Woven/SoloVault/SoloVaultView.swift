@@ -95,7 +95,7 @@ struct SoloVaultScreen: View {
 
     @State private var presentation: SoloVaultPresentation?
     @State private var photoToDelete: SoloVaultMediaRecord?
-    @State private var selectedPhotoItem: PhotosPickerItem?
+    @State private var selectedPhotoItems: [PhotosPickerItem] = []
 
     var body: some View {
         NavigationStack {
@@ -118,14 +118,15 @@ struct SoloVaultScreen: View {
 
                     ToolbarItem(placement: .topBarTrailing) {
                         PhotosPicker(
-                            selection: $selectedPhotoItem,
+                            selection: $selectedPhotoItems,
+                            maxSelectionCount: 50,
                             matching: .images,
                             photoLibrary: .shared()
                         ) {
-                            Label("Add Photo", systemImage: "plus")
+                            Label("Add Photos", systemImage: "plus")
                         }
                         .disabled(isImporting)
-                        .accessibilityLabel("Choose a photo to encrypt")
+                        .accessibilityLabel("Choose photos to encrypt")
                     }
                 }
             }
@@ -175,14 +176,15 @@ struct SoloVaultScreen: View {
         } message: {
             Text(errorMessage ?? "An unknown error occurred.")
         }
-        .task(id: selectedPhotoItem) {
-            await importSelectedPhoto()
+        .onChange(of: selectedPhotoItems) { _, items in
+            guard !items.isEmpty else { return }
+            Task { await importSelectedPhotos(items) }
         }
         .onChange(of: phase.isUnlocked) { _, isUnlocked in
             guard !isUnlocked else { return }
             presentation = nil
             photoToDelete = nil
-            selectedPhotoItem = nil
+            selectedPhotoItems = []
         }
     }
 
@@ -312,7 +314,7 @@ struct SoloVaultScreen: View {
                         Text("Your vault is empty")
                             .font(WovenTheme.title2())
                             .foregroundStyle(WovenTheme.textPrimary)
-                        Text("Choose a photo. Woven encrypts it in memory and persists only the sealed bytes.")
+                        Text("Choose one or more photos. Woven encrypts each one in memory and persists only the sealed bytes.")
                             .font(WovenTheme.subheadline())
                             .foregroundStyle(WovenTheme.textSecondary)
                             .multilineTextAlignment(.center)
@@ -320,17 +322,18 @@ struct SoloVaultScreen: View {
                     .padding(.horizontal, WovenTheme.spacing32)
 
                     PhotosPicker(
-                        selection: $selectedPhotoItem,
+                        selection: $selectedPhotoItems,
+                        maxSelectionCount: 50,
                         matching: .images,
                         photoLibrary: .shared()
                     ) {
-                        Label("Choose Photo", systemImage: "photo.badge.plus")
+                        Label("Choose Photos", systemImage: "photo.badge.plus")
                             .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(WovenButtonStyle(isEnabled: !isImporting))
                     .disabled(isImporting)
                     .padding(.horizontal, WovenTheme.spacing32)
-                    .accessibilityLabel("Choose a photo to encrypt")
+                    .accessibilityLabel("Choose photos to encrypt")
                     Spacer()
                 }
             } else {
@@ -363,14 +366,14 @@ struct SoloVaultScreen: View {
         }
         .overlay(alignment: .bottom) {
             if isImporting {
-                Label("Encrypting photo…", systemImage: "lock.rotation")
+                Label("Encrypting photos…", systemImage: "lock.rotation")
                     .font(WovenTheme.subheadline())
                     .foregroundStyle(WovenTheme.textPrimary)
                     .padding(.horizontal, WovenTheme.spacing16)
                     .padding(.vertical, WovenTheme.spacing12)
                     .background(.ultraThinMaterial, in: Capsule())
                     .padding(.bottom, WovenTheme.spacing20)
-                    .accessibilityLabel("Encrypting selected photo")
+                    .accessibilityLabel("Encrypting selected photos")
             }
         }
     }
@@ -405,22 +408,28 @@ struct SoloVaultScreen: View {
         count == 1 ? "1 encrypted photo" : "\(count) encrypted photos"
     }
 
-    private func importSelectedPhoto() async {
-        guard let item = selectedPhotoItem else { return }
+    private func importSelectedPhotos(_ items: [PhotosPickerItem]) async {
+        defer { selectedPhotoItems = [] }
+        var unreadableCount = 0
 
-        defer { selectedPhotoItem = nil }
-
-        do {
-            guard let data = try await item.loadTransferable(type: Data.self),
-                  UIImage(data: data) != nil else {
-                onPresentError("The selected item is not a readable photo.")
+        for item in items {
+            do {
+                guard let data = try await item.loadTransferable(type: Data.self),
+                      UIImage(data: data) != nil else {
+                    unreadableCount += 1
+                    continue
+                }
+                await onImport(data)
+            } catch is CancellationError {
                 return
+            } catch {
+                unreadableCount += 1
             }
-            await onImport(data)
-        } catch is CancellationError {
-            return
-        } catch {
-            onPresentError("The selected photo could not be loaded: \(error.localizedDescription)")
+        }
+
+        if unreadableCount > 0 {
+            let noun = unreadableCount == 1 ? "photo" : "photos"
+            onPresentError("\(unreadableCount) selected \(noun) could not be loaded.")
         }
     }
 }

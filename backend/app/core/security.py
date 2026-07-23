@@ -23,6 +23,10 @@ class AppleTokenError(ValueError):
     pass
 
 
+class GoogleTokenError(ValueError):
+    pass
+
+
 class AppleTokenVerifier:
     """Verify Apple identity-token signature and all Woven-bound claims."""
 
@@ -63,6 +67,66 @@ class AppleTokenVerifier:
         supplied_nonce = str(payload.get("nonce", ""))
         if not hmac.compare_digest(expected_nonce, supplied_nonce):
             raise AppleTokenError("Apple authentication failed")
+        return payload
+
+
+class GoogleTokenVerifier:
+    """Verify Google identity-token signature and all Woven-bound claims."""
+
+    def __init__(
+        self,
+        configuration: Settings = settings,
+        signing_key_resolver: Callable[[str], object] | None = None,
+    ):
+        self.configuration = configuration
+        self._signing_key_resolver = signing_key_resolver
+
+    def verify(self, identity_token: str) -> dict:
+        if not identity_token or not self.configuration.GOOGLE_CLIENT_ID:
+            raise GoogleTokenError("Google authentication failed")
+        try:
+            if self._signing_key_resolver is not None:
+                signing_key = self._signing_key_resolver(identity_token)
+            else:
+                signing_key = PyJWKClient(
+                    self.configuration.GOOGLE_JWKS_URL,
+                    cache_keys=True,
+                    lifespan=3600,
+                ).get_signing_key_from_jwt(identity_token).key
+            payload = jwt.decode(
+                identity_token,
+                signing_key,
+                algorithms=["RS256"],
+                audience=self.configuration.GOOGLE_CLIENT_ID,
+                options={
+                    "require": [
+                        "sub",
+                        "iss",
+                        "aud",
+                        "exp",
+                        "iat",
+                        "email",
+                        "email_verified",
+                    ],
+                    "verify_iss": False,
+                },
+            )
+        except jwt.PyJWTError as error:
+            raise GoogleTokenError("Google authentication failed") from error
+        except Exception as error:
+            raise GoogleTokenError("Google authentication failed") from error
+
+        issuer = str(payload.get("iss", ""))
+        if issuer not in {"https://accounts.google.com", "accounts.google.com"}:
+            raise GoogleTokenError("Google authentication failed")
+        subject = payload.get("sub")
+        if not isinstance(subject, str) or not subject.strip():
+            raise GoogleTokenError("Google authentication failed")
+        if payload.get("email_verified") is not True:
+            raise GoogleTokenError("Google authentication failed")
+        email = payload.get("email")
+        if not isinstance(email, str) or not email.strip():
+            raise GoogleTokenError("Google authentication failed")
         return payload
 
 

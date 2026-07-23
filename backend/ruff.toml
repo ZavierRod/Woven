@@ -1,0 +1,7 @@
+target-version = "py312"
+preview = false
+
+[lint]
+# Keep CI deterministic as Ruff's preview default set evolves. These are
+# Ruff's documented stable defaults; Bandit remains the dedicated security scan.
+select = ["E4", "E7", "E9", "F"]

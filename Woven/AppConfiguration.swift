@@ -20,6 +20,20 @@ enum AppConfigurationError: LocalizedError {
 struct AppConfiguration: Sendable {
     let environment: WovenEnvironment
     let apiBaseURL: URL
+    let googleIOSClientID: String?
+    let googleServerClientID: String?
+
+    init(
+        environment: WovenEnvironment,
+        apiBaseURL: URL,
+        googleIOSClientID: String? = nil,
+        googleServerClientID: String? = nil
+    ) {
+        self.environment = environment
+        self.apiBaseURL = apiBaseURL
+        self.googleIOSClientID = googleIOSClientID
+        self.googleServerClientID = googleServerClientID
+    }
 
     static func load(bundle: Bundle = .main) throws -> Self {
         guard let rawEnvironment = bundle.object(forInfoDictionaryKey: "WOVEN_ENVIRONMENT") as? String,
@@ -49,7 +63,12 @@ struct AppConfiguration: Sendable {
                 throw AppConfigurationError.invalid("Staging and production require a non-local HTTPS API URL.")
             }
         }
-        return Self(environment: environment, apiBaseURL: url)
+        return Self(
+            environment: environment,
+            apiBaseURL: url,
+            googleIOSClientID: configuredValue("GIDClientID", bundle: bundle),
+            googleServerClientID: configuredValue("GIDServerClientID", bundle: bundle)
+        )
     }
 
     var permitsDevelopmentAccounts: Bool {
@@ -62,5 +81,18 @@ struct AppConfiguration: Sendable {
 
     static var configuredBaseURLString: String {
         (try? load().apiBaseURL.absoluteString) ?? "woven-invalid://configuration"
+    }
+
+    var googleSignInConfigured: Bool {
+        googleIOSClientID != nil && googleServerClientID != nil
+    }
+
+    private static func configuredValue(_ key: String, bundle: Bundle) -> String? {
+        guard let rawValue = bundle.object(forInfoDictionaryKey: key) as? String else {
+            return nil
+        }
+        let value = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !value.isEmpty, !value.contains("$(") else { return nil }
+        return value
     }
 }

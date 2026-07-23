@@ -52,9 +52,11 @@ def test_remote_configuration_fails_closed_for_http_sqlite_and_local_storage():
     [
         ("APPLE_ISSUER", "https://apple.example.invalid"),
         ("APPLE_JWKS_URL", "https://apple.example.invalid/keys"),
+        ("GOOGLE_ISSUER", "https://google.example.invalid"),
+        ("GOOGLE_JWKS_URL", "https://google.example.invalid/keys"),
     ],
 )
-def test_remote_apple_verification_endpoints_are_pinned(name, value):
+def test_remote_federated_verification_endpoints_are_pinned(name, value):
     with pytest.raises(ValueError, match=name):
         remote_settings(**{name: value})
 
@@ -74,6 +76,8 @@ def test_development_password_endpoints_are_hidden_remotely(client):
         assert malformed.status_code == 422
         assert malformed.json() == {"detail": "Invalid request"}
         assert "must-not-echo" not in malformed.text
+        unavailable_google = client.post("/auth/google", json={"id_token": "not-configured"})
+        assert unavailable_google.status_code == 404
     finally:
         settings.APP_ENV = previous
 

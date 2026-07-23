@@ -40,6 +40,9 @@ class Settings(BaseSettings):
     APPLE_CLIENT_ID: str = ""
     APPLE_ISSUER: str = "https://appleid.apple.com"
     APPLE_JWKS_URL: str = "https://appleid.apple.com/auth/keys"
+    GOOGLE_CLIENT_ID: str = ""
+    GOOGLE_ISSUER: str = "https://accounts.google.com"
+    GOOGLE_JWKS_URL: str = "https://www.googleapis.com/oauth2/v3/certs"
 
     CORS_ORIGINS: str = ""
     TRUSTED_HOSTS: str = ""
@@ -103,6 +106,7 @@ class Settings(BaseSettings):
             "database_engine": urlparse(self.DATABASE_URL).scheme,
             "storage_backend": self.STORAGE_BACKEND.value,
             "device_signatures": self.ENFORCE_DEVICE_SIGNATURES,
+            "google_auth": bool(self.GOOGLE_CLIENT_ID),
         }
 
     @model_validator(mode="after")
@@ -135,6 +139,10 @@ class Settings(BaseSettings):
                 errors.append("APPLE_ISSUER must use Apple's official HTTPS issuer")
             if self.APPLE_JWKS_URL != "https://appleid.apple.com/auth/keys":
                 errors.append("APPLE_JWKS_URL must use Apple's official HTTPS key endpoint")
+            if self.GOOGLE_ISSUER != "https://accounts.google.com":
+                errors.append("GOOGLE_ISSUER must use Google's official HTTPS issuer")
+            if self.GOOGLE_JWKS_URL != "https://www.googleapis.com/oauth2/v3/certs":
+                errors.append("GOOGLE_JWKS_URL must use Google's official HTTPS key endpoint")
             if not self.ENFORCE_DEVICE_SIGNATURES:
                 errors.append("ENFORCE_DEVICE_SIGNATURES must be true in staging and production")
             if not self.trusted_hosts:

@@ -35,6 +35,10 @@ build/
 .swiftpm/
 *.xcworkspace
 !default.xcworkspace
+!Woven.xcodeproj/project.xcworkspace/
+!Woven.xcodeproj/project.xcworkspace/xcshareddata/
+!Woven.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/
+!Woven.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved
 *.xcuserstate
 xcuserdata/
 *.xcresult/

@@ -152,6 +152,7 @@ struct SoloVaultStateTests {
             keyStore: keyStore
         )
         let photoData = Data("in-memory-photo-payload-that-must-be-cleared-on-lock".utf8)
+        let secondPhotoData = Data("second-photo-payload-for-multi-import".utf8)
 
         let firstLaunchStore = SoloVaultStore(dependencies: dependencies)
         await firstLaunchStore.bootstrap()
@@ -171,13 +172,22 @@ struct SoloVaultStateTests {
         }
         #expect(firstLaunchStore.decryptedPhotos[record.id] == photoData)
 
+        await firstLaunchStore.importPhoto(secondPhotoData)
+        guard case .unlocked(let multiPhotoManifest) = firstLaunchStore.phase,
+              multiPhotoManifest.media.count == 2,
+              let secondRecord = multiPhotoManifest.media.first(where: { $0.id != record.id }) else {
+            Issue.record("A second photo could not be added to the Solo vault")
+            return
+        }
+        #expect(firstLaunchStore.decryptedPhotos[secondRecord.id] == secondPhotoData)
+
         firstLaunchStore.lock()
         #expect(firstLaunchStore.decryptedPhotos.isEmpty)
         guard case .locked(let lockedSummary) = firstLaunchStore.phase else {
             Issue.record("Vault did not enter the locked state")
             return
         }
-        #expect(lockedSummary.photoCount == 1)
+        #expect(lockedSummary.photoCount == 2)
 
         let relaunchedStore = SoloVaultStore(dependencies: dependencies)
         await relaunchedStore.bootstrap()
@@ -186,7 +196,7 @@ struct SoloVaultStateTests {
             Issue.record("Persisted vault was not locked on relaunch")
             return
         }
-        #expect(relaunchedSummary.photoCount == 1)
+        #expect(relaunchedSummary.photoCount == 2)
 
         await relaunchedStore.unlock()
         guard case .unlocked(let reopenedManifest) = relaunchedStore.phase else {
@@ -194,8 +204,10 @@ struct SoloVaultStateTests {
             return
         }
         #expect(relaunchedStore.decryptedPhotos[record.id] == photoData)
+        #expect(relaunchedStore.decryptedPhotos[secondRecord.id] == secondPhotoData)
 
         await relaunchedStore.deletePhoto(id: record.id)
+        await relaunchedStore.deletePhoto(id: secondRecord.id)
         guard case .unlocked(let emptyManifest) = relaunchedStore.phase else {
             Issue.record("Vault left the unlocked state after deletion")
             return

@@ -1,6 +1,8 @@
 import AuthenticationServices
 import CryptoKit
 import Foundation
+import GoogleSignIn
+import GoogleSignInSwift
 import Observation
 import Security
 import SwiftUI
@@ -49,6 +51,10 @@ final class ProductionAuthenticationStore {
     private let urlSession: URLSession
     private let refreshKey = "production.refresh-token"
 
+    var googleSignInConfigured: Bool {
+        configuration.googleSignInConfigured
+    }
+
     init(configuration: AppConfiguration) {
         self.configuration = configuration
         let sessionConfiguration = URLSessionConfiguration.ephemeral
@@ -78,9 +84,49 @@ final class ProductionAuthenticationStore {
         )
     }
 
+    func signInWithGoogle() async {
+        guard !isWorking else { return }
+        guard let clientID = configuration.googleIOSClientID,
+              let serverClientID = configuration.googleServerClientID else {
+            errorMessage = "Sign in with Google is not configured for this build."
+            return
+        }
+        guard let presentingViewController = Self.presentingViewController() else {
+            errorMessage = "Woven could not present Google sign-in."
+            return
+        }
+
+        isWorking = true
+        errorMessage = nil
+        defer { isWorking = false }
+        do {
+            GIDSignIn.sharedInstance.configuration = GIDConfiguration(
+                clientID: clientID,
+                serverClientID: serverClientID
+            )
+            let result = try await GIDSignIn.sharedInstance.signIn(
+                withPresenting: presentingViewController
+            )
+            guard let idToken = result.user.idToken?.tokenString, !idToken.isEmpty else {
+                throw AppConfigurationError.invalid("Google did not return a verifiable identity.")
+            }
+            let data = try await request(path: "/auth/google", body: ["id_token": idToken])
+            let response = try JSONDecoder().decode(ProductionSessionResponse.self, from: data)
+            KeychainHelper.shared.save(key: refreshKey, value: response.refreshToken)
+            session = response.pairSession
+        } catch {
+            if (error as NSError).code == GIDSignInError.canceled.rawValue {
+                errorMessage = "Sign in with Google was cancelled."
+            } else {
+                errorMessage = "Sign in with Google failed. Please try again."
+            }
+        }
+    }
+
     func signOut() async {
         let refreshToken = KeychainHelper.shared.read(key: refreshKey)
         clearLocalSession()
+        GIDSignIn.sharedInstance.signOut()
         guard let refreshToken else { return }
         _ = try? await request(path: "/auth/logout", body: ["refresh_token": refreshToken])
     }
@@ -120,6 +166,19 @@ final class ProductionAuthenticationStore {
         KeychainHelper.shared.delete(key: refreshKey)
         session = nil
     }
+
+    private static func presentingViewController() -> UIViewController? {
+        let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+        let root = scenes
+            .flatMap(\.windows)
+            .first(where: \.isKeyWindow)?
+            .rootViewController
+        var presented = root
+        while let next = presented?.presentedViewController {
+            presented = next
+        }
+        return presented
+    }
 }
 
 struct ProductionSignInView: View {
@@ -133,7 +192,7 @@ struct ProductionSignInView: View {
                 .foregroundStyle(WovenTheme.accent)
             Text("Sign in to Woven")
                 .font(.title.bold())
-            Text("Your Apple identity authenticates your account. Vault keys remain only on your devices.")
+            Text("Your Apple or Google identity authenticates your account. Vault keys remain only on your devices.")
                 .multilineTextAlignment(.center)
                 .foregroundStyle(.secondary)
             SignInWithAppleButton(.signIn) { request in
@@ -160,6 +219,21 @@ struct ProductionSignInView: View {
             .signInWithAppleButtonStyle(.white)
             .frame(height: 50)
             .disabled(store.isWorking)
+            if store.googleSignInConfigured {
+                HStack {
+                    Divider()
+                    Text("or")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Divider()
+                }
+                GoogleSignInButton {
+                    Task { await store.signInWithGoogle() }
+                }
+                .frame(height: 50)
+                .disabled(store.isWorking)
+                .accessibilityLabel("Sign in with Google")
+            }
             if store.isWorking { ProgressView() }
             if let error = store.errorMessage {
                 Text(error).foregroundStyle(.red).multilineTextAlignment(.center)
@@ -167,6 +241,9 @@ struct ProductionSignInView: View {
         }
         .padding(32)
         .preferredColorScheme(.dark)
+        .onOpenURL { url in
+            GIDSignIn.sharedInstance.handle(url)
+        }
     }
 
     private static func randomNonce() throws -> String {

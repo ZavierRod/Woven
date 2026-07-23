@@ -1,12 +1,11 @@
 # Staging deployment record
 
-Status: **Railway staging backend and Apple/Xcode signing configuration are ready; one iPhone installation and Apple sign-in were operator-reported, while the exact Google-enabled build and hardware acceptance remain pending.**
+Status: **The Google-capable backend is deployed fail-closed and the iOS build is signed; Google OAuth identifiers, installation of that exact build, and hardware acceptance remain pending.**
 
-The current local deployment candidate adds fail-closed Google authentication
-and a new `google_user_id` migration. It is not represented by the deployed
-identity below yet. Google sign-in remains hidden and `/auth/google` remains
-404 until matching Google iOS and Web/server OAuth client IDs are configured;
-no Google client secret is required by Woven.
+The deployed backend includes fail-closed Google authentication and the
+`google_user_id` migration. Google sign-in remains hidden in the app and
+`/auth/google` returns 404 until matching Google iOS and Web/server OAuth client
+IDs are configured; no Google client secret is required by Woven.
 
 ## Provider and artifact identity
 
@@ -19,8 +18,8 @@ no Google client secret is required by Woven.
 | Object bucket | `woven-staging-ciphertext` |
 | Compute / bucket region | `us-west2` / `sjc` (US West, California) |
 | Public HTTPS API hostname | `woven-api-staging.up.railway.app` |
-| Backend Git commit | `207b11f4d7de5cf47d15ac06f3f975197e5774c4` |
-| Alembic revision | `d7a4c10b8e21` (head) |
+| Backend Git commit | `401559b168c7c7bfc4380483ecef2ec12a1e4668` |
+| Alembic revision | `a4b7c9d2e301` (head) |
 
 No credential, secret, token, connection string, private object name, or user data is recorded here.
 
@@ -32,7 +31,7 @@ Railway resolves these names from fixed staging policy values, generated staging
 
 `APPLE_ISSUER` and `APPLE_JWKS_URL` retain the pinned official defaults. The exact non-secret and human-controlled value inventory, source, configuration location, and verification method are recorded in `staging-values.md`.
 
-For the pending Google-enabled deployment, Railway must additionally receive
+To enable the deployed Google route, Railway must additionally receive
 `GOOGLE_CLIENT_ID` (the non-secret Web/server OAuth client ID). The official
 Google issuer and JWKS settings remain pinned repository defaults.
 
@@ -76,7 +75,7 @@ Google issuer and JWKS settings remain pinned repository defaults.
 - In Railway: no action is required unless the owner chooses a different cost policy. Railway rejected the authorized $5 hard ceiling because its minimum is $10; changing that boundary requires explicit new authorization. Monitor actual usage and stop the staging services before $5 if necessary.
 - In Google Cloud: configure an OAuth consent screen, an iOS OAuth client for `com.zavier.Woven.staging`, and a Web/server OAuth client. Put the resulting non-secret identifiers in the three Staging Xcode settings documented in `staging-values.md`, and put the identical Web/server client ID in Railway as `GOOGLE_CLIENT_ID`. Do not create, download, or commit a client secret for this native ID-token flow.
 - In Apple Developer/Xcode: no remaining non-hardware configuration issue was found. Interactive account or provisioning approval may still appear when a physical device is first selected.
-- On physical hardware: connect and trust iPhone A, enable Developer Mode if prompted, select it as the `Woven-Staging` run destination, and install the exact committed build. Then repeat the installation on iPhone B before beginning the two-user checklist in `two-iphone-staging-results.md`.
+- On physical hardware: after Google configuration, rebuild and install the exact committed Staging app on the already-connected iPhone A, then run the same commit on the iPhone 17e Simulator for the interim two-user test. A second physical iPhone is still required for the formal hardware checklist.
 - APNs delivery/signing, backup restore drills, recovery, post-revocation content-key rotation, formal security review, incident-response ownership, production infrastructure, and public launch remain out of scope.
 
 ## Recommended APNs milestone after physical verification

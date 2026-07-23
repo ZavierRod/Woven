@@ -9,9 +9,9 @@ Allowed result values: **Passed**, **Failed**, **Blocked**, **Not tested**. Mark
 | Date/time (UTC) | |
 | Operator | |
 | Staging API hostname | `woven-api-staging.up.railway.app` |
-| Backend Git commit/image digest | `207b11f4d7de5cf47d15ac06f3f975197e5774c4` (deployment message; image digest retained in Railway) |
-| Alembic revision | `d7a4c10b8e21` |
-| iOS staging Git commit/build number | |
+| Backend Git commit/image digest | `401559b168c7c7bfc4380483ecef2ec12a1e4668` (deployed source; image digest retained in Railway) |
+| Alembic revision | `a4b7c9d2e301` |
+| iOS staging Git commit/build number | `401559b168c7c7bfc4380483ecef2ec12a1e4668` / 1 (signed build and archive; not yet installed) |
 | iPhone A model / iOS version | |
 | iPhone B model / iOS version | |
 | Installation method/profile class | |
@@ -24,8 +24,8 @@ As of 2026-07-23, the shared `Woven-Staging` scheme uses Staging for test, launc
 The operator reported that an earlier Staging build ran on iPhone A and completed
 Sign in with Apple. The build commit, device metadata, and remaining hardware
 behaviors were not recorded, so the formal rows below remain **Not tested**.
-After Google OAuth configuration and deployment, install the exact new commit on
-iPhone A and the Simulator before beginning the interim flow.
+After Google OAuth configuration, install the exact new commit on iPhone A and
+the Simulator before beginning the interim flow.
 
 ## One-iPhone plus Simulator interim test
 

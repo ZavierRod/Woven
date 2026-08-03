@@ -142,6 +142,31 @@ def test_device_registration_is_idempotent_but_rejects_key_or_device_replacement
     assert replacement.status_code == 409
 
 
+def test_pair_account_lookup_returns_only_minimal_partner_identity(client):
+    alice = dev_account(client, "alice")
+    bob = dev_account(client, "bob")
+    register(client, alice, "a1", b"A")
+
+    partner = client.get(
+        f"/pair-v2/accounts/invite/{bob['invite_code'].lower()}",
+        headers=headers(alice["access_token"]),
+    )
+    assert partner.status_code == 200, partner.text
+    assert partner.json() == {"user_id": bob["user_id"], "username": bob["username"]}
+
+    self_lookup = client.get(
+        f"/pair-v2/accounts/invite/{alice['invite_code']}",
+        headers=headers(alice["access_token"]),
+    )
+    assert self_lookup.status_code == 422
+
+    missing = client.get(
+        "/pair-v2/accounts/invite/NOTFOUND",
+        headers=headers(alice["access_token"]),
+    )
+    assert missing.status_code == 404
+
+
 def test_signed_device_request_rejects_tampering_replay_and_wrong_account(client):
     alice = dev_account(client, "alice")
     bob = dev_account(client, "bob")

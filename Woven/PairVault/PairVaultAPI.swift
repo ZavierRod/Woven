@@ -97,7 +97,7 @@ final class PairVaultAPIClient: PairRelayAPI, @unchecked Sendable {
     func account(inviteCode: String, session: PairSession) async throws -> PairAccountLookup {
         let encoded = inviteCode.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? inviteCode
         return try await send(
-            path: "/users/\(encoded)",
+            path: "/pair-v2/accounts/invite/\(encoded)",
             method: "GET",
             token: session.accessToken,
             body: EmptyBody()

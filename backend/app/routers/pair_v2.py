@@ -75,6 +75,20 @@ def device_payload(device: PairDeviceV2) -> dict:
     }
 
 
+@router.get("/accounts/invite/{invite_code}", dependencies=SIGNED_DEVICE_REQUEST)
+def lookup_pair_account(
+    invite_code: str,
+    user_id: int = Depends(get_current_user_id),
+    db: Session = Depends(get_db),
+):
+    account = user_crud.get_by_invite_code(db, invite_code.strip().upper())
+    if account is None:
+        raise HTTPException(status_code=404, detail="Pair account not found")
+    if account.id == user_id:
+        raise HTTPException(status_code=422, detail="A Pair vault requires two different accounts")
+    return {"user_id": account.id, "username": account.username}
+
+
 def invitation_context(invitation: PairInvitationV2) -> dict:
     return {
         "protocol": "woven-pair-v2",

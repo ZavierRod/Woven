@@ -1,6 +1,6 @@
 # Staging deployment record
 
-Status: **Google OAuth is working on the Simulator and Apple sign-in is working on one physical iPhone. The Pair partner-lookup compatibility fix is deployed; installation and interim one-iPhone-plus-Simulator Pair acceptance of the exact fixed build remain pending.**
+Status: **The one-iPhone-plus-Simulator MVP path is working: Google and Apple sign-in, Pair Vault creation, one media upload, and decrypted viewing by both users were observed. Formal two-physical-iPhone and broader security acceptance remain pending.**
 
 The deployed backend includes fail-closed Google authentication and the
 `google_user_id` migration. Matching Google iOS and Web/server OAuth client IDs
@@ -57,6 +57,7 @@ remain pinned repository defaults.
 | Remote docs and development auth absent | Passed | Docs/OpenAPI, Pair dev session, and password signup paths returned 404 under valid request schemas. |
 | Remote adversarial boundaries | Passed | Untrusted Host rejected by edge/app, 22 MiB streamed body returned 413, invalid bearer returned 401 without echo, unsafe request ID was replaced, wildcard CORS absent, and auth rate limiting returned 429 with `Retry-After`. |
 | Signed Pair partner lookup | Passed | The deployed minimal-response route is active and rejects unsigned requests with 401. Focused tests cover case-normalized success, unknown codes, and self-pair rejection. No Pair Vault creation request reached the backend during the original client decoding failure. |
+| Interim one-iPhone-plus-Simulator Pair flow | Passed (limited scope) | The operator observed distinct Google/Simulator and Apple/physical-iPhone users create a Pair Vault, add one picture, and view it from both clients. This is MVP functional evidence, not two-device hardware, biometric, replay, revocation, capture, reboot, or storage-inspection evidence. |
 | PostgreSQL private/restart | Passed | Public TCP proxy removed; private endpoint retained; readiness passes after API restart. Backup/restore remains an operator drill. |
 | Object store private/opaque/delete | Passed | Woven adapter PUT/GET/DELETE passed with a synthetic ciphertext object; anonymous list/GET were rejected; post-test metadata returned zero objects/bytes. |
 | Structured log redaction inspection | Passed | Build, migration, application, and request logs exposed only package names, safe configuration summary fields, routes/statuses, and opaque request IDs; no configured secret values were observed. |
@@ -76,7 +77,7 @@ remain pinned repository defaults.
 - In Railway: no action is required unless the owner chooses a different cost policy. Railway rejected the authorized $5 hard ceiling because its minimum is $10; changing that boundary requires explicit new authorization. Monitor actual usage and stop the staging services before $5 if necessary.
 - In Google Cloud: OAuth branding and both client IDs are configured. Google sign-in was observed on the Simulator. Keep the intended Gmail address as an OAuth test user while the consent screen is in testing. No Google client secret is used or committed.
 - In Apple Developer/Xcode: no remaining non-hardware configuration issue was found. Interactive account or provisioning approval may still appear when a physical device is first selected.
-- On physical hardware: rebuild and install commit `a75c4d20929d9987e6266e46160730cc0d49f9c9` (or a documentation-only descendant) on the already-connected iPhone A and the iPhone 17e Simulator, then repeat the interim Pair flow. Command-line generic-device validation stalled in Xcode's Apple-account operation, so use the already-working Xcode UI signing session for this install. A second physical iPhone is still required for the formal hardware checklist.
+- On physical hardware: the interim Pair creation/upload/view flow passed with one iPhone and the iPhone 17e Simulator. A second physical iPhone is still required for the formal hardware checklist, including two-device biometric, capture, reboot, network interruption, replay, expiry, and revocation behavior.
 - APNs delivery/signing, backup restore drills, recovery, post-revocation content-key rotation, formal security review, incident-response ownership, production infrastructure, and public launch remain out of scope.
 
 ## Recommended APNs milestone after physical verification

@@ -43,6 +43,20 @@ upload, request, approval, consume, and replay rejection in both directions.
 Record Face ID/passcode, reboot, capture, recording, and physical-device results
 only for the real iPhone; leave the second-device hardware rows Not tested.
 
+### Interim result — 2026-08-03
+
+| Observation | Result | Sanitized evidence |
+|---|---|---|
+| Simulator user signs in with Google and physical-iPhone user signs in with Apple | Passed | Operator observed both staging sessions. |
+| Partner invite lookup and Pair Vault creation | Passed | Operator created the Pair Vault after installing the lookup fix. |
+| Add one picture to the Pair Vault | Passed | One media item was added successfully. |
+| Both users decrypt and view the picture | Passed | Operator observed the same item from the Simulator and physical iPhone. |
+| Remaining request/approval, replay, expiry, revocation, network, biometric, capture, recording, reboot, and second-physical-device checks | Not tested | No result inferred from the MVP path. |
+
+The operator also reported that the current flow is clunky and the UI needs a
+substantial usability and visual-design pass. This does not invalidate the MVP
+functional result, but it should be addressed before broader testing or launch.
+
 ## Checklist and results
 
 | # | Physical observation | Result | Sanitized observation | Bug reference |

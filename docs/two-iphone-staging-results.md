@@ -11,7 +11,7 @@ Allowed result values: **Passed**, **Failed**, **Blocked**, **Not tested**. Mark
 | Staging API hostname | `woven-api-staging.up.railway.app` |
 | Backend Git commit/image digest | `401559b168c7c7bfc4380483ecef2ec12a1e4668` (deployed source; image digest retained in Railway) |
 | Alembic revision | `a4b7c9d2e301` |
-| iOS staging Git commit/build number | `401559b168c7c7bfc4380483ecef2ec12a1e4668` / 1 (signed build and archive; not yet installed) |
+| iOS staging Git commit/build number | `9b99106f6bb2c3491f9258fa754304ce29387a1a` / 1 (signed build and archive; not yet installed) |
 | iPhone A model / iOS version | |
 | iPhone B model / iOS version | |
 | Installation method/profile class | |

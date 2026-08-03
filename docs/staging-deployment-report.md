@@ -1,6 +1,6 @@
 # Staging deployment record
 
-Status: **Google OAuth is configured on Railway and in the signed Staging app; interactive Google sign-in, installation of the exact build, and hardware acceptance remain pending.**
+Status: **Google OAuth is working on the Simulator and Apple sign-in is working on one physical iPhone. The Pair partner-lookup compatibility fix is deployed; installation and interim one-iPhone-plus-Simulator Pair acceptance of the exact fixed build remain pending.**
 
 The deployed backend includes fail-closed Google authentication and the
 `google_user_id` migration. Matching Google iOS and Web/server OAuth client IDs
@@ -18,7 +18,7 @@ route rejects an invalid token with 401.
 | Object bucket | `woven-staging-ciphertext` |
 | Compute / bucket region | `us-west2` / `sjc` (US West, California) |
 | Public HTTPS API hostname | `woven-api-staging.up.railway.app` |
-| Backend Git commit | `401559b168c7c7bfc4380483ecef2ec12a1e4668` |
+| Backend Git commit | `a75c4d20929d9987e6266e46160730cc0d49f9c9` |
 | Alembic revision | `a4b7c9d2e301` (head) |
 
 No credential, secret, token, connection string, private object name, or user data is recorded here.
@@ -56,6 +56,7 @@ remain pinned repository defaults.
 | Public HTTPS health/readiness/security headers | Passed | `/health` and `/ready` returned 200 through Railway HTTPS; HSTS, no-store, nosniff, and request ID were observed. |
 | Remote docs and development auth absent | Passed | Docs/OpenAPI, Pair dev session, and password signup paths returned 404 under valid request schemas. |
 | Remote adversarial boundaries | Passed | Untrusted Host rejected by edge/app, 22 MiB streamed body returned 413, invalid bearer returned 401 without echo, unsafe request ID was replaced, wildcard CORS absent, and auth rate limiting returned 429 with `Retry-After`. |
+| Signed Pair partner lookup | Passed | The deployed minimal-response route is active and rejects unsigned requests with 401. Focused tests cover case-normalized success, unknown codes, and self-pair rejection. No Pair Vault creation request reached the backend during the original client decoding failure. |
 | PostgreSQL private/restart | Passed | Public TCP proxy removed; private endpoint retained; readiness passes after API restart. Backup/restore remains an operator drill. |
 | Object store private/opaque/delete | Passed | Woven adapter PUT/GET/DELETE passed with a synthetic ciphertext object; anonymous list/GET were rejected; post-test metadata returned zero objects/bytes. |
 | Structured log redaction inspection | Passed | Build, migration, application, and request logs exposed only package names, safe configuration summary fields, routes/statuses, and opaque request IDs; no configured secret values were observed. |
@@ -64,7 +65,7 @@ remain pinned repository defaults.
 
 ## Provider-independent verification
 
-- Backend: 120 tests passed on Python 3.12 with the deployment dependency set; Ruff and Bandit passed; installed-environment `pip-audit` reported no known vulnerabilities.
+- Backend: 121 tests passed on Python 3.12 with the deployment dependency set; Ruff and Bandit passed; installed-environment `pip-audit` reported no known vulnerabilities.
 - The container upgrades pip to a fixed 26.1.2-or-newer release before installing requirements and still runs as the non-root `woven` user.
 - Current iOS verification passed with the Railway HTTPS origin and `com.zavier.Woven.staging`: the `Woven-Staging` scheme resolves every action to Staging; its compiled plist contains the matching Google iOS client, server audience, and reversed callback scheme; and the generic-Simulator build, generic-device build, and Xcode archive succeeded. Automatic Apple Development signing still contains the registered bundle/application identifier and `com.apple.developer.applesignin = Default` entitlement. Interactive Google UI and account exchange remain unclaimed until the Simulator is launched.
 - Ten Staging unit/state tests and six UI/launch executions passed (thirteen logical tests in Xcode's result summary). The tests include fail-closed unreadable Apple credentials and proof that Staging never permits deterministic development accounts. Both Staging and Release static analysis passed. Development login types, UI, and callable API methods are compiled only when the explicit Debug-only `WOVEN_DEVELOPMENT_AUTH` condition is present; normal Staging settings do not define it.
@@ -73,9 +74,9 @@ remain pinned repository defaults.
 ## Explicitly deferred
 
 - In Railway: no action is required unless the owner chooses a different cost policy. Railway rejected the authorized $5 hard ceiling because its minimum is $10; changing that boundary requires explicit new authorization. Monitor actual usage and stop the staging services before $5 if necessary.
-- In Google Cloud: OAuth branding and both client IDs are configured. Confirm the intended Gmail address remains an OAuth test user while the consent screen is in testing. Interactive Google sign-in remains to be observed on the Simulator. No Google client secret is used or committed.
+- In Google Cloud: OAuth branding and both client IDs are configured. Google sign-in was observed on the Simulator. Keep the intended Gmail address as an OAuth test user while the consent screen is in testing. No Google client secret is used or committed.
 - In Apple Developer/Xcode: no remaining non-hardware configuration issue was found. Interactive account or provisioning approval may still appear when a physical device is first selected.
-- On physical hardware: after Google configuration, rebuild and install the exact committed Staging app on the already-connected iPhone A, then run the same commit on the iPhone 17e Simulator for the interim two-user test. A second physical iPhone is still required for the formal hardware checklist.
+- On physical hardware: rebuild and install commit `a75c4d20929d9987e6266e46160730cc0d49f9c9` (or a documentation-only descendant) on the already-connected iPhone A and the iPhone 17e Simulator, then repeat the interim Pair flow. Command-line generic-device validation stalled in Xcode's Apple-account operation, so use the already-working Xcode UI signing session for this install. A second physical iPhone is still required for the formal hardware checklist.
 - APNs delivery/signing, backup restore drills, recovery, post-revocation content-key rotation, formal security review, incident-response ownership, production infrastructure, and public launch remain out of scope.
 
 ## Recommended APNs milestone after physical verification

@@ -9,9 +9,9 @@ Allowed result values: **Passed**, **Failed**, **Blocked**, **Not tested**. Mark
 | Date/time (UTC) | |
 | Operator | |
 | Staging API hostname | `woven-api-staging.up.railway.app` |
-| Backend Git commit/image digest | `401559b168c7c7bfc4380483ecef2ec12a1e4668` (deployed source; image digest retained in Railway) |
+| Backend Git commit/image digest | `a75c4d20929d9987e6266e46160730cc0d49f9c9` (deployed source; image digest retained in Railway) |
 | Alembic revision | `a4b7c9d2e301` |
-| iOS staging Git commit/build number | `9b99106f6bb2c3491f9258fa754304ce29387a1a` / 1 (signed build and archive; not yet installed) |
+| iOS staging Git commit/build number | `a75c4d20929d9987e6266e46160730cc0d49f9c9` / 1 (Pair lookup fix; exact build installation pending) |
 | iPhone A model / iOS version | |
 | iPhone B model / iOS version | |
 | Installation method/profile class | |
@@ -22,10 +22,15 @@ Allowed result values: **Passed**, **Failed**, **Blocked**, **Not tested**. Mark
 As of 2026-08-03, the shared `Woven-Staging` scheme uses Staging for test, launch, profile, analyze, and archive actions. The registered bundle ID, automatic-signing team, Sign in with Apple entitlement, backend Apple audience, injected Railway HTTPS URL, Google iOS client, server audience, and reversed callback scheme match. The configured generic-Simulator build, generic-device signed build, and archive passed. Earlier ten unit/state tests, six UI/launch executions, and Staging/Release analysis also passed. The Staging UI exposes no development-account selector. These results do not change any physical checklist result below from **Not tested**.
 
 The operator reported that an earlier Staging build ran on iPhone A and completed
-Sign in with Apple. The build commit, device metadata, and remaining hardware
-behaviors were not recorded, so the formal rows below remain **Not tested**.
-Install the exact new commit on iPhone A and the Simulator before beginning the
-interim flow.
+Sign in with Apple, and that Google sign-in succeeded on the Simulator. Pair Vault
+creation then failed before its POST because the client used a legacy account
+lookup response shape. Commit `a75c4d20929d9987e6266e46160730cc0d49f9c9`
+adds a minimal signed lookup endpoint and switches the client to it; 121 backend
+tests, the Staging Simulator build, the Railway migration gate, live health and
+readiness, and remote smoke/adversarial checks passed. The build commit, device
+metadata, and remaining hardware behaviors were not recorded, so the formal rows
+below remain **Not tested**. Install the exact fixed build on iPhone A and the
+Simulator before repeating the interim flow.
 
 ## One-iPhone plus Simulator interim test
 

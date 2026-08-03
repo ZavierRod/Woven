@@ -1,11 +1,11 @@
 # Staging deployment record
 
-Status: **The Google-capable backend is deployed fail-closed and the iOS build is signed; Google OAuth identifiers, installation of that exact build, and hardware acceptance remain pending.**
+Status: **Google OAuth is configured on Railway and in the signed Staging app; interactive Google sign-in, installation of the exact build, and hardware acceptance remain pending.**
 
 The deployed backend includes fail-closed Google authentication and the
-`google_user_id` migration. Google sign-in remains hidden in the app and
-`/auth/google` returns 404 until matching Google iOS and Web/server OAuth client
-IDs are configured; no Google client secret is required by Woven.
+`google_user_id` migration. Matching Google iOS and Web/server OAuth client IDs
+are now configured without a Google client secret. The enabled `/auth/google`
+route rejects an invalid token with 401.
 
 ## Provider and artifact identity
 
@@ -27,13 +27,13 @@ No credential, secret, token, connection string, private object name, or user da
 
 Railway resolves these names from fixed staging policy values, generated staging-only secrets, or private service/bucket references. Values are intentionally omitted:
 
-`APP_ENV`, `DEBUG`, `PUBLIC_BASE_URL`, `DATABASE_URL`, `SECRET_KEY`, `REFRESH_TOKEN_PEPPER`, `APPLE_CLIENT_ID`, `TRUSTED_HOSTS`, `CORS_ORIGINS`, `PORT`, `STORAGE_BACKEND`, `ENFORCE_DEVICE_SIGNATURES`, `OBJECT_STORAGE_ENDPOINT`, `OBJECT_STORAGE_BUCKET`, `OBJECT_STORAGE_REGION`, `OBJECT_STORAGE_ACCESS_KEY`, `OBJECT_STORAGE_SECRET_KEY`, `OBJECT_STORAGE_ADDRESSING_STYLE`, and `OBJECT_STORAGE_SERVER_SIDE_ENCRYPTION`.
+`APP_ENV`, `DEBUG`, `PUBLIC_BASE_URL`, `DATABASE_URL`, `SECRET_KEY`, `REFRESH_TOKEN_PEPPER`, `APPLE_CLIENT_ID`, `GOOGLE_CLIENT_ID`, `TRUSTED_HOSTS`, `CORS_ORIGINS`, `PORT`, `STORAGE_BACKEND`, `ENFORCE_DEVICE_SIGNATURES`, `OBJECT_STORAGE_ENDPOINT`, `OBJECT_STORAGE_BUCKET`, `OBJECT_STORAGE_REGION`, `OBJECT_STORAGE_ACCESS_KEY`, `OBJECT_STORAGE_SECRET_KEY`, `OBJECT_STORAGE_ADDRESSING_STYLE`, and `OBJECT_STORAGE_SERVER_SIDE_ENCRYPTION`.
 
 `APPLE_ISSUER` and `APPLE_JWKS_URL` retain the pinned official defaults. The exact non-secret and human-controlled value inventory, source, configuration location, and verification method are recorded in `staging-values.md`.
 
-To enable the deployed Google route, Railway must additionally receive
-`GOOGLE_CLIENT_ID` (the non-secret Web/server OAuth client ID). The official
-Google issuer and JWKS settings remain pinned repository defaults.
+`GOOGLE_CLIENT_ID` is the non-secret Web/server OAuth client ID and matches the
+Staging app's server audience. The official Google issuer and JWKS settings
+remain pinned repository defaults.
 
 ## Railway controls
 
@@ -50,7 +50,7 @@ Google issuer and JWKS settings remain pinned repository defaults.
 
 | Gate | Result | Sanitized evidence |
 |---|---|---|
-| Human values configured in secret manager | Passed | Independent generated application secrets and private service references exist; the Railway Apple audience and registered staging App ID both equal `com.zavier.Woven.staging`. |
+| Human values configured in secret manager | Passed | Independent generated application secrets and private service references exist; Apple audiences match `com.zavier.Woven.staging`, and the Railway Google audience matches the Staging app's server client ID. |
 | Startup configuration validation | Passed | Railway-resolved variables passed `validate_staging_config.py`; development auth, debug, local DB/storage, wildcard hosts/CORS, and unsigned-device mode remain disabled. |
 | Migration upgrade/revision/check | Passed | Railway pre-deploy runs the staging validator, `alembic upgrade head`, an explicit database-head verifier, and `alembic check`; deployment is promoted only after success. |
 | Public HTTPS health/readiness/security headers | Passed | `/health` and `/ready` returned 200 through Railway HTTPS; HSTS, no-store, nosniff, and request ID were observed. |
@@ -64,16 +64,16 @@ Google issuer and JWKS settings remain pinned repository defaults.
 
 ## Provider-independent verification
 
-- Backend: 115 tests passed on Python 3.12 with the deployment dependency set; Ruff and Bandit passed; installed-environment `pip-audit` reported no known vulnerabilities.
+- Backend: 120 tests passed on Python 3.12 with the deployment dependency set; Ruff and Bandit passed; installed-environment `pip-audit` reported no known vulnerabilities.
 - The container upgrades pip to a fixed 26.1.2-or-newer release before installing requirements and still runs as the non-root `woven` user.
-- Current iOS verification passed with the Railway HTTPS origin and `com.zavier.Woven.staging`: the `Woven-Staging` scheme resolves every action to Staging, the Simulator build launched with only Sign in with Apple visible, the generic-device build and Xcode archive succeeded using automatic Apple Development signing, and the signed application/profile contain the registered bundle/application identifier and `com.apple.developer.applesignin = Default` entitlement. The archive's `Info.plist` contains the expected HTTPS API origin.
+- Current iOS verification passed with the Railway HTTPS origin and `com.zavier.Woven.staging`: the `Woven-Staging` scheme resolves every action to Staging; its compiled plist contains the matching Google iOS client, server audience, and reversed callback scheme; and the generic-Simulator build, generic-device build, and Xcode archive succeeded. Automatic Apple Development signing still contains the registered bundle/application identifier and `com.apple.developer.applesignin = Default` entitlement. Interactive Google UI and account exchange remain unclaimed until the Simulator is launched.
 - Ten Staging unit/state tests and six UI/launch executions passed (thirteen logical tests in Xcode's result summary). The tests include fail-closed unreadable Apple credentials and proof that Staging never permits deterministic development accounts. Both Staging and Release static analysis passed. Development login types, UI, and callable API methods are compiled only when the explicit Debug-only `WOVEN_DEVELOPMENT_AUTH` condition is present; normal Staging settings do not define it.
 - The signed archive uses a development provisioning profile (`get-task-allow = true`), which is appropriate for the requested device-development validation. Distribution/App Store export was not requested or claimed. No physical-device, Face ID, passcode, privacy-capture, reboot, or two-phone result is inferred from these checks.
 
 ## Explicitly deferred
 
 - In Railway: no action is required unless the owner chooses a different cost policy. Railway rejected the authorized $5 hard ceiling because its minimum is $10; changing that boundary requires explicit new authorization. Monitor actual usage and stop the staging services before $5 if necessary.
-- In Google Cloud: configure an OAuth consent screen, an iOS OAuth client for `com.zavier.Woven.staging`, and a Web/server OAuth client. Put the resulting non-secret identifiers in the three Staging Xcode settings documented in `staging-values.md`, and put the identical Web/server client ID in Railway as `GOOGLE_CLIENT_ID`. Do not create, download, or commit a client secret for this native ID-token flow.
+- In Google Cloud: OAuth branding and both client IDs are configured. Confirm the intended Gmail address remains an OAuth test user while the consent screen is in testing. Interactive Google sign-in remains to be observed on the Simulator. No Google client secret is used or committed.
 - In Apple Developer/Xcode: no remaining non-hardware configuration issue was found. Interactive account or provisioning approval may still appear when a physical device is first selected.
 - On physical hardware: after Google configuration, rebuild and install the exact committed Staging app on the already-connected iPhone A, then run the same commit on the iPhone 17e Simulator for the interim two-user test. A second physical iPhone is still required for the formal hardware checklist.
 - APNs delivery/signing, backup restore drills, recovery, post-revocation content-key rotation, formal security review, incident-response ownership, production infrastructure, and public launch remain out of scope.

@@ -662,9 +662,9 @@
 				TARGETED_DEVICE_FAMILY = "1,2";
 				WOVEN_STAGING_API_BASE_URL = "https://woven-api-staging.up.railway.app";
 				WOVEN_ENVIRONMENT = staging;
-				WOVEN_GOOGLE_IOS_CLIENT_ID = "";
-				WOVEN_GOOGLE_REVERSED_CLIENT_ID = "";
-				WOVEN_GOOGLE_SERVER_CLIENT_ID = "";
+				WOVEN_GOOGLE_IOS_CLIENT_ID = "1039200278787-t427mvq6q88hb0fg4et4jlei0alltii7.apps.googleusercontent.com";
+				WOVEN_GOOGLE_REVERSED_CLIENT_ID = "com.googleusercontent.apps.1039200278787-t427mvq6q88hb0fg4et4jlei0alltii7";
+				WOVEN_GOOGLE_SERVER_CLIENT_ID = "1039200278787-ioe7dr11hsfhv6ci4tddp7vp49ek515j.apps.googleusercontent.com";
 			};
 			name = Staging;
 		};

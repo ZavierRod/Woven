@@ -34,7 +34,7 @@ private struct DevelopmentRootView: View {
     @State private var pairVaultStore = PairVaultStore()
 
     var body: some View {
-        WovenVaultTabs(soloVaultStore: soloVaultStore, pairVaultStore: pairVaultStore)
+        WovenVaultHomeView(soloVaultStore: soloVaultStore, pairVaultStore: pairVaultStore)
     }
 }
 #endif
@@ -53,12 +53,12 @@ private struct ProductionRootView: View {
     var body: some View {
         Group {
             if let session = authentication.session {
-                WovenVaultTabs(soloVaultStore: soloVaultStore, pairVaultStore: pairVaultStore)
-                    .overlay(alignment: .topTrailing) {
-                        Button("Sign Out") { Task { await authentication.signOut() } }
-                            .buttonStyle(.bordered)
-                            .padding()
-                    }
+                WovenVaultHomeView(
+                    soloVaultStore: soloVaultStore,
+                    pairVaultStore: pairVaultStore,
+                    session: session,
+                    onSignOut: { Task { await authentication.signOut() } }
+                )
                     .task(id: session.accessToken) {
                         await pairVaultStore.signIn(session: session)
                     }
@@ -72,32 +72,17 @@ private struct ProductionRootView: View {
                 Text("STAGING")
                     .font(.caption2.bold())
                     .tracking(1.2)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 5)
-                    .foregroundStyle(.black)
-                    .background(.yellow, in: Capsule())
+                    .padding(.horizontal, 9)
+                    .padding(.vertical, 4)
+                    .foregroundStyle(WovenTheme.accent)
+                    .background(WovenTheme.cardBackground, in: Capsule())
+                    .overlay {
+                        Capsule().stroke(WovenTheme.accent.opacity(0.45), lineWidth: 1)
+                    }
                     .padding(.top, 8)
                     .accessibilityLabel("Woven staging build")
                     .allowsHitTesting(false)
             }
         }
-    }
-}
-
-private struct WovenVaultTabs: View {
-    let soloVaultStore: SoloVaultStore
-    let pairVaultStore: PairVaultStore
-
-    var body: some View {
-        TabView {
-            Tab("Solo", systemImage: "person.crop.circle.badge.checkmark") {
-                SoloVaultRootView(store: soloVaultStore)
-            }
-            Tab("Pair", systemImage: "person.2.badge.key.fill") {
-                PairVaultRootView(store: pairVaultStore)
-            }
-        }
-        .tint(WovenTheme.accent)
-        .preferredColorScheme(.dark)
     }
 }

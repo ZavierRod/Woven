@@ -4,16 +4,19 @@ import UIKit
 
 struct SoloVaultRootView: View {
     @State private var store: SoloVaultStore
+    private let includesNavigationStack: Bool
     @Environment(\.scenePhase) private var scenePhase
 
-    init(store: SoloVaultStore) {
+    init(store: SoloVaultStore, includesNavigationStack: Bool = true) {
         _store = State(initialValue: store)
+        self.includesNavigationStack = includesNavigationStack
     }
 
     var body: some View {
         ZStack {
             SoloVaultScreen(
                 phase: store.phase,
+                includesNavigationStack: includesNavigationStack,
                 decryptedPhotos: store.decryptedPhotos,
                 isCreating: store.isCreating,
                 isImporting: store.isImporting,
@@ -58,6 +61,9 @@ struct SoloVaultRootView: View {
                 store.lock()
             }
         }
+        .onDisappear {
+            if !store.isUnlocking { store.lock() }
+        }
     }
 }
 
@@ -77,6 +83,7 @@ private enum SoloVaultPresentation: Identifiable {
 
 struct SoloVaultScreen: View {
     let phase: SoloVaultPhase
+    var includesNavigationStack = true
     var decryptedPhotos: [UUID: Data] = [:]
     var isCreating = false
     var isImporting = false
@@ -98,37 +105,11 @@ struct SoloVaultScreen: View {
     @State private var selectedPhotoItems: [PhotosPickerItem] = []
 
     var body: some View {
-        NavigationStack {
-            ZStack {
-                WovenTheme.background.ignoresSafeArea()
-                content
-            }
-            .navigationTitle(navigationTitle)
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbarBackground(WovenTheme.background, for: .navigationBar)
-            .toolbarColorScheme(.dark, for: .navigationBar)
-            .toolbar {
-                if case .unlocked = phase {
-                    ToolbarItem(placement: .topBarLeading) {
-                        Button(action: onLock) {
-                            Label("Lock", systemImage: "lock.fill")
-                        }
-                        .accessibilityLabel("Lock Solo vault")
-                    }
-
-                    ToolbarItem(placement: .topBarTrailing) {
-                        PhotosPicker(
-                            selection: $selectedPhotoItems,
-                            maxSelectionCount: 50,
-                            matching: .images,
-                            photoLibrary: .shared()
-                        ) {
-                            Label("Add Photos", systemImage: "plus")
-                        }
-                        .disabled(isImporting)
-                        .accessibilityLabel("Choose photos to encrypt")
-                    }
-                }
+        Group {
+            if includesNavigationStack {
+                NavigationStack { screenContent }
+            } else {
+                screenContent
             }
         }
         .preferredColorScheme(.dark)
@@ -185,6 +166,40 @@ struct SoloVaultScreen: View {
             presentation = nil
             photoToDelete = nil
             selectedPhotoItems = []
+        }
+    }
+
+    private var screenContent: some View {
+        ZStack {
+            WovenTheme.background.ignoresSafeArea()
+            content
+        }
+        .navigationTitle(navigationTitle)
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbarBackground(WovenTheme.background, for: .navigationBar)
+        .toolbarColorScheme(.dark, for: .navigationBar)
+        .toolbar {
+            if case .unlocked = phase {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button(action: onLock) {
+                        Label("Lock", systemImage: "lock.fill")
+                    }
+                    .accessibilityLabel("Lock Solo vault")
+                }
+
+                ToolbarItem(placement: .topBarTrailing) {
+                    PhotosPicker(
+                        selection: $selectedPhotoItems,
+                        maxSelectionCount: 50,
+                        matching: .images,
+                        photoLibrary: .shared()
+                    ) {
+                        Label("Add Photos", systemImage: "plus")
+                    }
+                    .disabled(isImporting)
+                    .accessibilityLabel("Choose photos to encrypt")
+                }
+            }
         }
     }
 

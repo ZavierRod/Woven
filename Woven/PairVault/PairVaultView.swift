@@ -4,16 +4,18 @@ import UIKit
 
 struct PairVaultRootView: View {
     @State private var store: PairVaultStore
+    private let includesNavigationStack: Bool
     @State private var isScreenCaptureActive = false
     @Environment(\.scenePhase) private var scenePhase
 
-    init(store: PairVaultStore) {
+    init(store: PairVaultStore, includesNavigationStack: Bool = true) {
         _store = State(initialValue: store)
+        self.includesNavigationStack = includesNavigationStack
     }
 
     var body: some View {
         ZStack {
-            PairVaultScreen(store: store)
+            PairVaultScreen(store: store, includesNavigationStack: includesNavigationStack)
             PairCaptureStateMonitor { isActive in
                 isScreenCaptureActive = isActive
                 if isActive { store.lock() }
@@ -28,6 +30,7 @@ struct PairVaultRootView: View {
         .onChange(of: scenePhase) { _, newPhase in
             if newPhase != .active { store.lock() }
         }
+        .onDisappear { store.lock() }
     }
 }
 
@@ -98,22 +101,19 @@ private enum PairSheet: Identifiable {
 
 struct PairVaultScreen: View {
     @Bindable var store: PairVaultStore
+    var includesNavigationStack = true
     @State private var sheet: PairSheet?
-    @State private var selectedPhoto: PhotosPickerItem?
+    @State private var selectedPhotoItems: [PhotosPickerItem] = []
     @State private var mediaToDelete: PairDecryptedMedia?
     @State private var isShowingRevokeConfirmation = false
 
     var body: some View {
-        NavigationStack {
-            ZStack {
-                WovenTheme.background.ignoresSafeArea()
-                content
+        Group {
+            if includesNavigationStack {
+                NavigationStack { screenContent }
+            } else {
+                screenContent
             }
-            .navigationTitle(navigationTitle)
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbarBackground(WovenTheme.background, for: .navigationBar)
-            .toolbarColorScheme(.dark, for: .navigationBar)
-            .toolbar { toolbar }
         }
         .preferredColorScheme(.dark)
         .sheet(item: $sheet) { sheet in
@@ -169,12 +169,27 @@ struct PairVaultScreen: View {
         } message: {
             Text(store.errorMessage ?? "An unknown error occurred.")
         }
-        .task(id: selectedPhoto) { await importSelectedPhoto() }
+        .onChange(of: selectedPhotoItems) { _, items in
+            guard !items.isEmpty else { return }
+            Task { await importSelectedPhotos(items) }
+        }
         .onChange(of: store.phase) { _, newPhase in
             if case .unlocked = newPhase { return }
             if case .photo = sheet { sheet = nil }
-            selectedPhoto = nil
+            selectedPhotoItems = []
         }
+    }
+
+    private var screenContent: some View {
+        ZStack {
+            WovenTheme.background.ignoresSafeArea()
+            content
+        }
+        .navigationTitle(navigationTitle)
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbarBackground(WovenTheme.background, for: .navigationBar)
+        .toolbarColorScheme(.dark, for: .navigationBar)
+        .toolbar { toolbar }
     }
 
     @ToolbarContentBuilder
@@ -191,11 +206,16 @@ struct PairVaultScreen: View {
             ToolbarItemGroup(placement: .topBarTrailing) {
                 Button { store.lock() } label: { Image(systemName: "lock.fill") }
                     .accessibilityLabel("Lock Pair vault")
-                PhotosPicker(selection: $selectedPhoto, matching: .images) {
-                    Image(systemName: "plus")
+                PhotosPicker(
+                    selection: $selectedPhotoItems,
+                    maxSelectionCount: 50,
+                    matching: .images,
+                    photoLibrary: .shared()
+                ) {
+                    Label("Add Photos", systemImage: "photo.badge.plus")
                 }
                 .disabled(store.isImporting)
-                .accessibilityLabel("Choose a photo to encrypt in Pair vault")
+                .accessibilityLabel("Choose photos to encrypt in Pair vault")
                 partnerActions
             }
         } else if store.canRevokePartner {
@@ -297,18 +317,19 @@ struct PairVaultScreen: View {
         VStack(spacing: WovenTheme.spacing24) {
             Spacer()
             icon("person.2.badge.plus")
-            Text("No Pair vault yet")
+            Text("Create a space together")
                 .font(WovenTheme.title2())
                 .foregroundStyle(WovenTheme.textPrimary)
-            Text("Your partner must sign in once on their device so Woven can register their public device key.")
+            Text("Invite one person you trust. Your shared memories open only when you both agree.")
                 .font(WovenTheme.subheadline())
                 .foregroundStyle(WovenTheme.textSecondary)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, WovenTheme.spacing32)
             if let inviteCode = store.accountInviteCode {
                 VStack(spacing: WovenTheme.spacing12) {
-                    Text("Your Invite Code")
+                    Text("YOUR WOVEN CODE")
                         .font(WovenTheme.caption())
+                        .tracking(1.2)
                         .foregroundStyle(WovenTheme.textSecondary)
                     Text(inviteCode)
                         .font(.system(.title3, design: .monospaced, weight: .semibold))
@@ -317,7 +338,7 @@ struct PairVaultScreen: View {
                     Button {
                         UIPasteboard.general.string = inviteCode
                     } label: {
-                        Label("Copy Invite Code", systemImage: "doc.on.doc")
+                        Label("Copy code", systemImage: "doc.on.doc")
                     }
                     .buttonStyle(.bordered)
                     .tint(WovenTheme.accent)
@@ -330,7 +351,7 @@ struct PairVaultScreen: View {
             Button {
                 sheet = .create
             } label: {
-                Label("Create Pair Vault", systemImage: "plus")
+                Label("Create a Pair Vault", systemImage: "person.2.badge.plus")
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(WovenButtonStyle(isEnabled: !store.isWorking))
@@ -348,7 +369,7 @@ struct PairVaultScreen: View {
             Text("Pair invitation received")
                 .font(WovenTheme.title2())
                 .foregroundStyle(WovenTheme.textPrimary)
-            Text("The relay has an encrypted key share addressed to this device. Ask your partner for the separate invitation code.")
+            Text("Someone invited you to share a private space. Ask them for the one-time invitation code to join.")
                 .font(WovenTheme.subheadline())
                 .foregroundStyle(WovenTheme.textSecondary)
                 .multilineTextAlignment(.center)
@@ -356,7 +377,7 @@ struct PairVaultScreen: View {
             Button {
                 sheet = .invitation(invitation)
             } label: {
-                Label("Accept Invitation", systemImage: "checkmark.shield.fill")
+                Label("Join Pair Vault", systemImage: "checkmark.shield.fill")
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(WovenButtonStyle(isEnabled: !store.isWorking))
@@ -374,18 +395,29 @@ struct PairVaultScreen: View {
                 Text("Waiting for your partner")
                     .font(WovenTheme.title2())
                     .foregroundStyle(WovenTheme.textPrimary)
-                Text("Share this one-time code out of band. The relay stores only its SHA-256 hash.")
+                Text("Send this one-time invitation privately to your partner. It disappears after they join.")
                     .font(WovenTheme.subheadline())
                     .foregroundStyle(WovenTheme.textSecondary)
                     .multilineTextAlignment(.center)
                 if let token = store.invitationToken {
-                    Text(formattedInvitationToken(token))
-                        .font(.system(.caption, design: .monospaced, weight: .semibold))
-                        .foregroundStyle(WovenTheme.textPrimary)
-                        .textSelection(.enabled)
-                        .padding()
-                        .background(WovenTheme.cardBackground, in: RoundedRectangle(cornerRadius: 14))
-                        .accessibilityLabel("One-time Pair invitation code \(token)")
+                    WovenSurface {
+                        VStack(spacing: WovenTheme.spacing16) {
+                            Text(formattedInvitationToken(token))
+                                .font(.system(.caption, design: .monospaced, weight: .semibold))
+                                .foregroundStyle(WovenTheme.textPrimary)
+                                .textSelection(.enabled)
+                            Button {
+                                UIPasteboard.general.string = token
+                            } label: {
+                                Label("Copy invitation", systemImage: "doc.on.doc")
+                                    .frame(maxWidth: .infinity)
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .tint(WovenTheme.accent)
+                            .accessibilityLabel("Copy one-time Pair invitation")
+                        }
+                    }
+                    .accessibilityElement(children: .contain)
                 } else {
                     Text("Invitation code is unavailable on this device.")
                         .foregroundStyle(WovenTheme.textSecondary)
@@ -394,9 +426,6 @@ struct PairVaultScreen: View {
                     Task { try? await store.refresh() }
                 }
                 .accessibilityLabel("Refresh Pair invitation status")
-                Text("Vault identifier \(vault.vaultID.prefix(8))")
-                    .font(WovenTheme.caption())
-                    .foregroundStyle(WovenTheme.textTertiary)
             }
             .padding(WovenTheme.spacing32)
         }
@@ -411,7 +440,7 @@ struct PairVaultScreen: View {
                     Text("Pair vault locked")
                         .font(WovenTheme.title2())
                         .foregroundStyle(WovenTheme.textPrimary)
-                    Text("No decrypted image, thumbnail, name, or reconstructed key is retained while locked.")
+                    Text("Your photos stay hidden until your partner approves this opening.")
                         .font(WovenTheme.subheadline())
                         .foregroundStyle(WovenTheme.textSecondary)
                         .multilineTextAlignment(.center)
@@ -443,7 +472,7 @@ struct PairVaultScreen: View {
             Button {
                 Task { await store.requestAccess() }
             } label: {
-                Label("Request Partner Approval", systemImage: "person.badge.key.fill")
+                Label("Ask Partner to Open", systemImage: "person.badge.key.fill")
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(WovenButtonStyle(isEnabled: !store.isWorking))
@@ -451,12 +480,12 @@ struct PairVaultScreen: View {
             .accessibilityLabel("Request one-time Pair vault approval")
         case .creatingRequest:
             ProgressView("Creating bound request…").tint(WovenTheme.accent)
-        case .awaitingApproval(let request):
+        case .awaitingApproval:
             VStack(spacing: WovenTheme.spacing12) {
                 ProgressView().tint(WovenTheme.accent)
                 Text("Waiting for partner approval")
                     .foregroundStyle(WovenTheme.textPrimary)
-                Text("Request \(request.requestID.prefix(8)) expires automatically.")
+                Text("This request expires automatically if it is not approved.")
                     .font(WovenTheme.caption())
                     .foregroundStyle(WovenTheme.textSecondary)
                 Button("Cancel request", role: .cancel) {
@@ -496,9 +525,9 @@ struct PairVaultScreen: View {
 
     private func incomingRequest(_ request: PairAccessRecord) -> some View {
         VStack(alignment: .leading, spacing: WovenTheme.spacing12) {
-            Label("Access requested", systemImage: "person.badge.clock.fill")
+            Label("Your partner wants to open the vault", systemImage: "person.badge.clock.fill")
                 .foregroundStyle(WovenTheme.textPrimary)
-            Text("Approving releases only this device’s encrypted share to request \(request.requestID.prefix(8)).")
+            Text("Approve only if you expect this request. Your device will authenticate you first.")
                 .font(WovenTheme.caption())
                 .foregroundStyle(WovenTheme.textSecondary)
             HStack {
@@ -507,7 +536,7 @@ struct PairVaultScreen: View {
                 }
                 .accessibilityLabel("Deny partner access request")
                 Spacer()
-                Button("Approve with Face ID") {
+                Button("Approve Opening") {
                     Task { await store.approve(request) }
                 }
                 .buttonStyle(.borderedProminent)
@@ -533,14 +562,19 @@ struct PairVaultScreen: View {
                         .foregroundStyle(WovenTheme.textSecondary)
                         .multilineTextAlignment(.center)
                         .padding(.horizontal, WovenTheme.spacing32)
-                    PhotosPicker(selection: $selectedPhoto, matching: .images) {
-                        Label("Choose Photo", systemImage: "photo.badge.plus")
+                    PhotosPicker(
+                        selection: $selectedPhotoItems,
+                        maxSelectionCount: 50,
+                        matching: .images,
+                        photoLibrary: .shared()
+                    ) {
+                        Label("Choose Photos", systemImage: "photo.badge.plus")
                             .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(WovenButtonStyle(isEnabled: !store.isImporting))
                     .disabled(store.isImporting)
                     .padding(.horizontal, WovenTheme.spacing32)
-                    .accessibilityLabel("Choose a photo to encrypt in Pair vault")
+                    .accessibilityLabel("Choose photos to encrypt in Pair vault")
                     Spacer()
                 }
             } else {
@@ -607,17 +641,28 @@ struct PairVaultScreen: View {
             .accessibilityHidden(true)
     }
 
-    private func importSelectedPhoto() async {
-        guard let selectedPhoto else { return }
-        defer { self.selectedPhoto = nil }
-        do {
-            guard let data = try await selectedPhoto.loadTransferable(type: Data.self),
-                  UIImage(data: data) != nil else {
-                throw PairVaultError.relay("The selected item was not a readable image.")
+    private func importSelectedPhotos(_ items: [PhotosPickerItem]) async {
+        defer { selectedPhotoItems = [] }
+        var unreadableCount = 0
+
+        for item in items {
+            do {
+                guard let data = try await item.loadTransferable(type: Data.self),
+                      UIImage(data: data) != nil else {
+                    unreadableCount += 1
+                    continue
+                }
+                await store.importPhoto(data)
+            } catch is CancellationError {
+                return
+            } catch {
+                unreadableCount += 1
             }
-            await store.importPhoto(data)
-        } catch {
-            store.errorMessage = error.localizedDescription
+        }
+
+        if unreadableCount > 0 {
+            let noun = unreadableCount == 1 ? "photo" : "photos"
+            store.errorMessage = "\(unreadableCount) selected \(noun) could not be loaded."
         }
     }
 
@@ -644,20 +689,23 @@ private struct PairVaultCreateView: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("Private vault name") {
-                    TextField("Shared memories", text: $name)
+                Section("Name your space") {
+                    TextField("Our memories", text: $name)
                         .textInputAutocapitalization(.words)
                         .accessibilityLabel("Private Pair vault name")
                 }
                 if requiresPartnerInviteCode {
-                    Section("Partner invite code") {
-                        TextField("Invite code", text: $inviteCode)
+                    Section("Who are you sharing with?") {
+                        TextField("Their Woven code", text: $inviteCode)
                             .textInputAutocapitalization(.characters)
                             .autocorrectionDisabled()
                     }
                 }
                 Section {
-                    Text("The name is encrypted with the vault key; the relay receives only authenticated ciphertext.")
+                    Label(
+                        "Only you and your partner can read the name or see what you add.",
+                        systemImage: "lock.shield"
+                    )
                 }
             }
             .navigationTitle("Create Pair Vault")
@@ -694,22 +742,25 @@ private struct PairInvitationAcceptView: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("One-time invitation code") {
-                    TextField("64-character code", text: $token)
+                Section("Invitation from your partner") {
+                    TextField("Paste one-time invitation", text: $token)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
                         .font(.system(.body, design: .monospaced))
                         .accessibilityLabel("Pair invitation code")
                 }
                 Section {
-                    Text("Acceptance decrypts and stores only your device’s share. It does not unlock the vault.")
+                    Label(
+                        "Joining adds this device to the vault. You will still approve each opening together.",
+                        systemImage: "person.2.badge.key"
+                    )
                 }
             }
-            .navigationTitle("Accept Pair Invite")
+            .navigationTitle("Join Pair Vault")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Accept") {
+                    Button("Join") {
                         submitting = true
                         Task {
                             await accept(token)

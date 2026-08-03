@@ -186,60 +186,112 @@ struct ProductionSignInView: View {
     @State private var rawNonce = ""
 
     var body: some View {
-        VStack(spacing: 24) {
-            Image(systemName: "lock.shield.fill")
-                .font(.system(size: 54))
-                .foregroundStyle(WovenTheme.accent)
-            Text("Sign in to Woven")
-                .font(.title.bold())
-            Text("Your Apple or Google identity authenticates your account. Vault keys remain only on your devices.")
-                .multilineTextAlignment(.center)
-                .foregroundStyle(.secondary)
-            SignInWithAppleButton(.signIn) { request in
-                do {
-                    rawNonce = try Self.randomNonce()
-                    request.nonce = Self.sha256(rawNonce)
-                    request.requestedScopes = [.fullName, .email]
-                } catch {
-                    store.errorMessage = error.localizedDescription
+        ZStack {
+            WovenTheme.background.ignoresSafeArea()
+
+            RadialGradient(
+                colors: [WovenTheme.accent.opacity(0.13), .clear],
+                center: .top,
+                startRadius: 12,
+                endRadius: 360
+            )
+            .ignoresSafeArea()
+
+            ScrollView {
+                VStack(spacing: WovenTheme.spacing32) {
+                    Spacer(minLength: 64)
+
+                    VStack(spacing: WovenTheme.spacing20) {
+                        WovenMark(size: 74)
+
+                        VStack(spacing: WovenTheme.spacing12) {
+                            Text("WOVEN")
+                                .font(.caption.weight(.semibold))
+                                .tracking(3.4)
+                                .foregroundStyle(WovenTheme.accent)
+                            Text("A private place for the moments that matter.")
+                                .font(.system(.largeTitle, design: .serif, weight: .semibold))
+                                .foregroundStyle(WovenTheme.textPrimary)
+                                .multilineTextAlignment(.center)
+                            Text("Keep memories for yourself, or open them together with someone you trust.")
+                                .font(WovenTheme.body())
+                                .foregroundStyle(WovenTheme.textSecondary)
+                                .multilineTextAlignment(.center)
+                                .lineSpacing(3)
+                        }
+                    }
+
+                    WovenSurface {
+                        VStack(spacing: WovenTheme.spacing16) {
+                            SignInWithAppleButton(.continue) { request in
+                                do {
+                                    rawNonce = try Self.randomNonce()
+                                    request.nonce = Self.sha256(rawNonce)
+                                    request.requestedScopes = [.fullName, .email]
+                                } catch {
+                                    store.errorMessage = error.localizedDescription
+                                }
+                            } onCompletion: { result in
+                                guard case .success(let authorization) = result,
+                                      let credential = authorization.credential as? ASAuthorizationAppleIDCredential,
+                                      let identityToken = credential.identityToken,
+                                      !rawNonce.isEmpty else {
+                                    store.errorMessage = "Sign in with Apple was cancelled or failed."
+                                    return
+                                }
+                                let fullName = credential.fullName.map { PersonNameComponentsFormatter().string(from: $0) }
+                                let nonce = rawNonce
+                                rawNonce = ""
+                                Task { await store.signIn(identityToken: identityToken, nonce: nonce, fullName: fullName) }
+                            }
+                            .signInWithAppleButtonStyle(.white)
+                            .frame(height: 52)
+                            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                            .disabled(store.isWorking)
+
+                            if store.googleSignInConfigured {
+                                HStack(spacing: WovenTheme.spacing12) {
+                                    Rectangle().fill(WovenTheme.separator).frame(height: 1)
+                                    Text("OR")
+                                        .font(.caption2.weight(.semibold))
+                                        .tracking(1.4)
+                                        .foregroundStyle(WovenTheme.textTertiary)
+                                    Rectangle().fill(WovenTheme.separator).frame(height: 1)
+                                }
+
+                                GoogleSignInButton {
+                                    Task { await store.signInWithGoogle() }
+                                }
+                                .frame(height: 52)
+                                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                                .disabled(store.isWorking)
+                                .accessibilityLabel("Continue with Google")
+                            }
+
+                            if store.isWorking {
+                                ProgressView("Signing in securely…")
+                                    .tint(WovenTheme.accent)
+                                    .foregroundStyle(WovenTheme.textSecondary)
+                            }
+
+                            if let error = store.errorMessage {
+                                Label(error, systemImage: "exclamationmark.circle.fill")
+                                    .font(WovenTheme.footnote())
+                                    .foregroundStyle(WovenTheme.error)
+                                    .multilineTextAlignment(.center)
+                            }
+                        }
+                    }
+
+                    Label("Your vault keys stay on your devices", systemImage: "lock.shield")
+                        .font(WovenTheme.footnote())
+                        .foregroundStyle(WovenTheme.textTertiary)
+
+                    Spacer(minLength: 24)
                 }
-            } onCompletion: { result in
-                guard case .success(let authorization) = result,
-                      let credential = authorization.credential as? ASAuthorizationAppleIDCredential,
-                      let identityToken = credential.identityToken,
-                      !rawNonce.isEmpty else {
-                    store.errorMessage = "Sign in with Apple was cancelled or failed."
-                    return
-                }
-                let fullName = credential.fullName.map { PersonNameComponentsFormatter().string(from: $0) }
-                let nonce = rawNonce
-                rawNonce = ""
-                Task { await store.signIn(identityToken: identityToken, nonce: nonce, fullName: fullName) }
-            }
-            .signInWithAppleButtonStyle(.white)
-            .frame(height: 50)
-            .disabled(store.isWorking)
-            if store.googleSignInConfigured {
-                HStack {
-                    Divider()
-                    Text("or")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    Divider()
-                }
-                GoogleSignInButton {
-                    Task { await store.signInWithGoogle() }
-                }
-                .frame(height: 50)
-                .disabled(store.isWorking)
-                .accessibilityLabel("Sign in with Google")
-            }
-            if store.isWorking { ProgressView() }
-            if let error = store.errorMessage {
-                Text(error).foregroundStyle(.red).multilineTextAlignment(.center)
+                .padding(.horizontal, WovenTheme.spacing24)
             }
         }
-        .padding(32)
         .preferredColorScheme(.dark)
         .onOpenURL { url in
             GIDSignIn.sharedInstance.handle(url)

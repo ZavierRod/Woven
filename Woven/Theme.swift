@@ -1,34 +1,34 @@
 import SwiftUI
 
 // MARK: - Woven Design System
-// Inspired by Apple Wallet's premium dark aesthetic
+// A quiet, tactile palette for private memories.
 
 struct WovenTheme {
     // MARK: - Core Colors
     
-    /// Deep black background with subtle warmth
-    static let background = Color(hex: "000000")
+    /// Warm ink rather than absolute black, which keeps long sessions comfortable.
+    static let background = Color(hex: "0E0D0C")
     
     /// Elevated surface for cards
-    static let cardBackground = Color(hex: "1C1C1E")
+    static let cardBackground = Color(hex: "191715")
     
     /// Slightly elevated surface
-    static let surfaceElevated = Color(hex: "2C2C2E")
+    static let surfaceElevated = Color(hex: "24211E")
     
     /// Subtle separator
-    static let separator = Color(hex: "38383A")
+    static let separator = Color(hex: "38332E")
     
     // MARK: - Text Colors
     
-    static let textPrimary = Color.white
-    static let textSecondary = Color(hex: "8E8E93")
-    static let textTertiary = Color(hex: "636366")
+    static let textPrimary = Color(hex: "F4EFE8")
+    static let textSecondary = Color(hex: "ADA59B")
+    static let textTertiary = Color(hex: "777069")
     
     // MARK: - Accent Colors
     
-    /// Warm gold accent - primary brand color
-    static let accent = Color(hex: "FFD700")
-    static let accentSoft = Color(hex: "FFD700").opacity(0.15)
+    /// Muted copper: warm enough for a personal journal, restrained enough for trust.
+    static let accent = Color(hex: "C9A477")
+    static let accentSoft = Color(hex: "C9A477").opacity(0.14)
     
     /// Success green
     static let success = Color(hex: "30D158")
@@ -42,12 +42,12 @@ struct WovenTheme {
     /// Info blue
     static let info = Color(hex: "0A84FF")
     
-    // MARK: - Card Gradients (Apple Wallet style)
+    // MARK: - Surface Gradients
     
     static let soloVaultGradient = LinearGradient(
         colors: [
-            Color(hex: "1A1A2E"),
-            Color(hex: "16213E")
+            Color(hex: "29241F"),
+            Color(hex: "171513")
         ],
         startPoint: .topLeading,
         endPoint: .bottomTrailing
@@ -55,8 +55,8 @@ struct WovenTheme {
     
     static let sharedVaultGradient = LinearGradient(
         colors: [
-            Color(hex: "2D1B4E"),
-            Color(hex: "1A1033")
+            Color(hex: "332820"),
+            Color(hex: "1A1613")
         ],
         startPoint: .topLeading,
         endPoint: .bottomTrailing
@@ -64,8 +64,8 @@ struct WovenTheme {
     
     static let primaryGradient = LinearGradient(
         colors: [
-            Color(hex: "FFD700"),
-            Color(hex: "FFA500")
+            Color(hex: "D6B68C"),
+            Color(hex: "B98E61")
         ],
         startPoint: .leading,
         endPoint: .trailing
@@ -73,8 +73,8 @@ struct WovenTheme {
     
     static let subtleGradient = LinearGradient(
         colors: [
-            Color(hex: "1C1C1E"),
-            Color(hex: "2C2C2E")
+            Color(hex: "201D1A"),
+            Color(hex: "171513")
         ],
         startPoint: .top,
         endPoint: .bottom
@@ -174,7 +174,11 @@ struct WovenCardStyle: ViewModifier {
         content
             .background(gradient)
             .clipShape(RoundedRectangle(cornerRadius: WovenTheme.cornerRadiusCard, style: .continuous))
-            .shadow(color: .black.opacity(0.3), radius: 10, x: 0, y: 5)
+            .overlay {
+                RoundedRectangle(cornerRadius: WovenTheme.cornerRadiusCard, style: .continuous)
+                    .stroke(WovenTheme.textPrimary.opacity(0.07), lineWidth: 1)
+            }
+            .shadow(color: .black.opacity(0.18), radius: 18, x: 0, y: 8)
     }
 }
 
@@ -184,7 +188,7 @@ struct WovenButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(WovenTheme.headline())
-            .foregroundColor(isEnabled ? .black : WovenTheme.textSecondary)
+            .foregroundColor(isEnabled ? Color(hex: "20170F") : WovenTheme.textSecondary)
             .padding(.vertical, 16)
             .frame(maxWidth: .infinity)
             .background(
@@ -195,6 +199,43 @@ struct WovenButtonStyle: ButtonStyle {
             .clipShape(RoundedRectangle(cornerRadius: WovenTheme.cornerRadiusMedium, style: .continuous))
             .scaleEffect(configuration.isPressed ? 0.98 : 1.0)
             .animation(.easeInOut(duration: 0.15), value: configuration.isPressed)
+    }
+}
+
+struct WovenMark: View {
+    var size: CGFloat = 64
+
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: size * 0.28, style: .continuous)
+                .stroke(WovenTheme.accent.opacity(0.72), lineWidth: max(2, size * 0.045))
+                .frame(width: size * 0.68, height: size * 0.5)
+                .rotationEffect(.degrees(42))
+            RoundedRectangle(cornerRadius: size * 0.28, style: .continuous)
+                .stroke(WovenTheme.textPrimary.opacity(0.72), lineWidth: max(2, size * 0.045))
+                .frame(width: size * 0.68, height: size * 0.5)
+                .rotationEffect(.degrees(-42))
+        }
+        .frame(width: size, height: size)
+        .accessibilityHidden(true)
+    }
+}
+
+struct WovenSurface<Content: View>: View {
+    let content: Content
+
+    init(@ViewBuilder content: () -> Content) {
+        self.content = content()
+    }
+
+    var body: some View {
+        content
+            .padding(WovenTheme.spacing20)
+            .background(WovenTheme.cardBackground, in: RoundedRectangle(cornerRadius: WovenTheme.cornerRadiusLarge, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: WovenTheme.cornerRadiusLarge, style: .continuous)
+                    .stroke(WovenTheme.textPrimary.opacity(0.07), lineWidth: 1)
+            }
     }
 }
 
@@ -268,5 +309,3 @@ struct AnimatedMeshBackground: View {
         }
     }
 }
-
-

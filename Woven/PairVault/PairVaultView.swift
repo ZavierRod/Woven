@@ -300,11 +300,33 @@ struct PairVaultScreen: View {
             Text("No Pair vault yet")
                 .font(WovenTheme.title2())
                 .foregroundStyle(WovenTheme.textPrimary)
-            Text("Your partner must sign in once on their Simulator so Woven can register their public device key.")
+            Text("Your partner must sign in once on their device so Woven can register their public device key.")
                 .font(WovenTheme.subheadline())
                 .foregroundStyle(WovenTheme.textSecondary)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, WovenTheme.spacing32)
+            if let inviteCode = store.accountInviteCode {
+                VStack(spacing: WovenTheme.spacing12) {
+                    Text("Your Invite Code")
+                        .font(WovenTheme.caption())
+                        .foregroundStyle(WovenTheme.textSecondary)
+                    Text(inviteCode)
+                        .font(.system(.title3, design: .monospaced, weight: .semibold))
+                        .foregroundStyle(WovenTheme.textPrimary)
+                        .textSelection(.enabled)
+                    Button {
+                        UIPasteboard.general.string = inviteCode
+                    } label: {
+                        Label("Copy Invite Code", systemImage: "doc.on.doc")
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(WovenTheme.accent)
+                    .accessibilityLabel("Copy your Pair account invite code")
+                }
+                .padding(WovenTheme.spacing16)
+                .background(WovenTheme.cardBackground, in: RoundedRectangle(cornerRadius: 16))
+                .accessibilityElement(children: .contain)
+            }
             Button {
                 sheet = .create
             } label: {

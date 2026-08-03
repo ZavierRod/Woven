@@ -73,6 +73,12 @@ final class PairVaultStore {
         #endif
     }
 
+    var accountInviteCode: String? {
+        guard let code = session?.inviteCode.trimmingCharacters(in: .whitespacesAndNewlines),
+              !code.isEmpty else { return nil }
+        return code
+    }
+
     @ObservationIgnored private let dependencies: PairVaultDependencies
     @ObservationIgnored private var session: PairSession?
     @ObservationIgnored private var device: PairDevice?

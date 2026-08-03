@@ -235,8 +235,10 @@ struct PairVaultTwoClientStateTests {
 
         await bob.signIn(session: session(for: 2))
         #expect(bob.phase == .ready)
+        #expect(bob.accountInviteCode == "DEV2")
         await alice.signIn(session: session(for: 1))
         #expect(alice.phase == .ready)
+        #expect(alice.accountInviteCode == "DEV1")
 
         await alice.createVault(named: "Two-person memories", partnerInviteCode: "DEV2")
         let token = try #require(alice.invitationToken)
